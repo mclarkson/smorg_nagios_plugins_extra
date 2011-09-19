@@ -10,7 +10,7 @@ Release: 1.12
 License: GPL
 Group: Applications/System
 Source: smorg-nagios-plugins-extra-1.tar.gz
-Requires: bash, grep, smorg-nagios-plugins, bc, sysstat
+Requires: bash, grep, smorg-nagios-plugins, bc, sysstat, bind-utils
 # PreReq: sh-utils
 BuildRoot: %{_tmppath}/%{name}-buildroot
 Packager: Mark Clarkson
