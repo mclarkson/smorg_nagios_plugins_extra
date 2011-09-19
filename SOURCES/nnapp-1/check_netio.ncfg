@@ -1,0 +1,206 @@
+# ---
+# NagiosGrapher Template for check_netio
+# Author: Ian Yates (i.yates@uea.ac.uk)
+# ---
+
+define ngraph{
+	service_name		^NETIO
+	graph_log_regex		RX=([0-9]+)
+	graph_value		netio_rx
+	graph_legend		bytes in
+	rrd_type		DERIVE
+	rrd_min			0
+	hide			yes
+}
+
+define ngraph{
+	service_name		^NETIO
+	graph_log_regex		TX=([0-9]+)
+	graph_value		netio_tx
+	graph_legend		bytes out
+	rrd_type		DERIVE
+	rrd_min			0
+	hide			yes
+}
+
+define ngraph{
+	service_name		^NETIO
+	type			CDEF
+	graph_value		netio_rx_bits
+	graph_calc		netio_rx,8,*
+	graph_legend		bits in
+	hide			yes
+}
+
+define ngraph{
+	service_name		^NETIO
+	type			CDEF
+	graph_value		netio_rx_bits_M
+	graph_calc		netio_rx_bits,1048576,/
+	hide			yes
+}
+
+define ngraph{
+	service_name		^NETIO
+	type			CDEF
+	graph_value		netio_tx_bits
+	graph_calc		netio_tx,8,*
+	graph_legend		bits out
+	hide			yes
+}
+
+define ngraph{
+	service_name		^NETIO
+	type			CDEF
+	graph_value		netio_tx_bits_M
+	graph_calc		netio_tx_bits,1048576,/
+	hide			yes
+}
+
+define ngraph{
+	service_name		^NETIO
+	type			CDEF
+	graph_value		netio_rx_bits_plot
+	graph_calc		netio_rx_bits
+	graph_units		bits/s
+	graph_legend		RX (Inbound data)
+	rrd_plottype		AREA
+	rrd_color		32CD32
+	hide			no
+}
+
+define ngraph{
+	service_name		^NETIO
+	type			CDEF
+	graph_value		netio_rx_bits_plot_line
+	graph_calc		netio_rx_bits
+	rrd_plottype		LINE
+	rrd_color		336600
+	hide			no
+}
+
+define ngraph{
+	service_name		^NETIO
+	type			CDEF
+	graph_value		netio_tx_bits_plot
+	graph_calc		netio_tx_bits,-1,*
+	graph_units		bits/s
+	graph_legend		TX (Outbound data)
+	rrd_plottype		AREA
+	rrd_color		4169E1
+	hide			no
+}
+
+define ngraph{
+	service_name		^NETIO
+	type			CDEF
+	graph_value		netio_tx_bits_plot_line
+	graph_calc		netio_tx_bits,-1,*
+	rrd_plottype		LINE
+	rrd_color		0033CC
+	hide			no
+}
+
+define ngraph{
+	service_name            ^NETIO
+	type			HRULE
+	hrule_value		0
+	rrd_color		000000
+	hide			no
+}
+
+define ngraph{
+	service_name		^NETIO
+	type			COMMENT
+	print_description
+	print_eol		left
+}
+
+define ngraph{
+	service_name		^NETIO
+	type			GPRINT
+	print_source		netio_rx_bits_M
+	print_description	RX Latest:
+	print_function		LAST
+	print_format		%2.2lf
+}
+
+define ngraph{
+	service_name		^NETIO
+	type			GPRINT
+	print_source		netio_rx_bits_M
+	print_description	RX Max:
+	print_function		MAX
+	print_format		%2.2lf
+}
+
+define ngraph{
+	service_name		^NETIO
+	type			GPRINT
+	print_source		netio_rx_bits_M
+	print_description	RX Min:
+	print_function		MIN
+	print_format		%2.2lf
+}
+
+define ngraph{
+	service_name		^NETIO
+	type			GPRINT
+	print_source		netio_rx_bits_M
+	print_description	RX Average:
+	print_function		AVERAGE		
+	print_format		%2.2lf
+}
+
+define ngraph{
+	service_name		^NETIO
+	type			COMMENT
+	print_description	(Mbits)
+	print_eol		left
+}
+
+define ngraph{
+	service_name		^NETIO
+	type			GPRINT
+	print_source		netio_tx_bits_M
+	print_description	TX Latest:
+	print_function		LAST
+	print_format		%2.2lf
+}
+
+define ngraph{
+	service_name		^NETIO
+	type			GPRINT
+	print_source		netio_tx_bits_M
+	print_description	TX Max:
+	print_function		MAX
+	print_format		%2.2lf
+}
+
+define ngraph{
+	service_name		^NETIO
+	type			GPRINT
+	print_source		netio_tx_bits_M
+	print_description	TX Min:
+	print_function		MIN
+	print_format		%2.2lf
+}
+
+define ngraph{
+	service_name		^NETIO
+	type			GPRINT
+	print_source		netio_tx_bits_M
+	print_description	TX Average:
+	print_function		AVERAGE		
+	print_format		%2.2lf
+}
+
+define ngraph{
+	service_name		^NETIO
+	type			COMMENT
+	print_description	(Mbits)
+	print_eol		left
+}
+
+
+# [EOF]
