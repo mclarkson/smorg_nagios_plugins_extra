@@ -1,15 +1,15 @@
-%define name nnapp
+%define name smorg-nagios-plugins-extra
 %define version 1
 %define release 1.12
 %define nnmmsg logger -t %{name}/rpm
 
 Summary: Package to deploy additional Nagios plugins
-Name: nnapp
+Name: smorg-nagios-plugins-extra
 Version: 1
 Release: 1.12
 License: GPL
 Group: Applications/System
-Source: nnapp-1.tar.gz
+Source: smorg-nagios-plugins-extra-1.tar.gz
 Requires: bash, grep, smorg-nagios-plugins, bc, sysstat
 # PreReq: sh-utils
 BuildRoot: %{_tmppath}/%{name}-buildroot
