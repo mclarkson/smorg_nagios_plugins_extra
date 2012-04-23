@@ -160,6 +160,22 @@ if [ -f %_libdir/nagios/plugins/check_hp_bladechassis ]
 then
         mv %_libdir/nagios/plugins/check_hp_bladechassis %_libdir/nagios/plugins/check_hp_bladechassis.rpmsave
 fi
+if [ -f %_libdir/nagios/plugins/check_puppet_log.sh ]
+then
+        mv %_libdir/nagios/plugins/check_puppet_log.sh %_libdir/nagios/plugins/check_puppet_log.sh.rpmsave
+fi
+if [ -f %_libdir/nagios/plugins/check_puppet_wrapper ]
+then
+        mv %_libdir/nagios/plugins/check_puppet_wrapper %_libdir/nagios/plugins/check_puppet_wrapper.rpmsave
+fi
+if [ -f %_libdir/nagios/plugins/check_fs_ro.sh ]
+then
+        mv %_libdir/nagios/plugins/check_fs_ro.sh %_libdir/nagios/plugins/check_fs_ro.sh.rpmsave
+fi
+if [ -f %_libdir/nagios/plugins/check_puppet_version.sh ]
+then
+        mv %_libdir/nagios/plugins/check_puppet_version.sh %_libdir/nagios/plugins/check_puppet_version.sh.rpmsave
+fi
 
 
 
@@ -172,79 +188,90 @@ fi
 %install
 [ "$RPM_BUILD_ROOT" != "/" ] && rm -rf $RPM_BUILD_ROOT
 install -d -m 0755 ${RPM_BUILD_ROOT}%_libdir/nagios/plugins
-/bin/cp check_cpu.sh ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_cpu.sh
+#/bin/cp check_cpu.sh ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_cpu.sh
 install -m 755 check_cpu.sh ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_cpu.sh
-/bin/cp check_drbd-0.5.2 ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_drbd-0.5.2
+#/bin/cp check_drbd-0.5.2 ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_drbd-0.5.2
 install -m 755 check_drbd-0.5.2 ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_drbd-0.5.2
-/bin/cp check_file.pl ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_file.pl
+#/bin/cp check_file.pl ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_file.pl
 install -m 755 check_file.pl ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_file.pl
-/bin/cp check_heartbeat_nodes ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_heartbeat_nodes
+#/bin/cp check_heartbeat_nodes ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_heartbeat_nodes
 install -m 755 check_heartbeat_nodes ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_heartbeat_nodes
-/bin/cp check_hpasm ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_hpasm
+#/bin/cp check_hpasm ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_hpasm
 install -m 755 check_hpasm ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_hpasm
-/bin/cp check_hpasm_noacu ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_hpasm_noacu
+#/bin/cp check_hpasm_noacu ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_hpasm_noacu
 install -m 755 check_hpasm_noacu ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_hpasm_noacu
-/bin/cp check_ilo2_health.pl ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_ilo2_health.pl
+#/bin/cp check_ilo2_health.pl ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_ilo2_health.pl
 install -m 755 check_ilo2_health.pl ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_ilo2_health.pl
-/bin/cp check_iostat ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_iostat
+#/bin/cp check_iostat ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_iostat
 install -m 755 check_iostat ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_iostat
-/bin/cp check_jboss ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_jboss
+#/bin/cp check_jboss ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_jboss
 install -m 755 check_jboss ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_jboss
-/bin/cp check_jboss.pl ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_jboss.pl
+#/bin/cp check_jboss.pl ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_jboss.pl
 install -m 755 check_jboss.pl ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_jboss.pl
-/bin/cp check_logfiles ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_logfiles
+#/bin/cp check_logfiles ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_logfiles
 install -m 755 check_logfiles ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_logfiles
-/bin/cp check_mysql_health ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_mysql_health
+#/bin/cp check_mysql_health ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_mysql_health
 install -m 755 check_mysql_health ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_mysql_health
-/bin/cp check_netio_1.1 ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_netio_1.1
+#/bin/cp check_netio_1.1 ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_netio_1.1
 install -m 755 check_netio_1.1 ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_netio_1.1
-/bin/cp check_netio.ncfg ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_netio.ncfg
+#/bin/cp check_netio.ncfg ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_netio.ncfg
 install -m 755 check_netio.ncfg ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_netio.ncfg
-/bin/cp check_om_storage.pl ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_om_storage.pl
+#/bin/cp check_om_storage.pl ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_om_storage.pl
 install -m 755 check_om_storage.pl ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_om_storage.pl
-/bin/cp check_openmanage ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_openmanage
+#/bin/cp check_openmanage ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_openmanage
 install -m 755 check_openmanage ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_openmanage
-/bin/cp check_rofs.sh ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_rofs.sh
+#/bin/cp check_rofs.sh ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_rofs.sh
 install -m 755 check_rofs.sh ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_rofs.sh
-/bin/cp check_ssl_cert ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_ssl_cert
+#/bin/cp check_ssl_cert ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_ssl_cert
 install -m 755 check_ssl_cert ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_ssl_cert
-/bin/cp check_uptime.pl ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_uptime.pl
+#/bin/cp check_uptime.pl ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_uptime.pl
 install -m 755 check_uptime.pl ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_uptime.pl
-/bin/cp show_users.sh ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/show_users.sh
+#/bin/cp show_users.sh ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/show_users.sh
 install -m 755 show_users.sh ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/show_users.sh
-/bin/cp check_jmx ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_jmx
+#/bin/cp check_jmx ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_jmx
 install -m 755 check_jmx ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_jmx
-/bin/cp jmxquery.jar ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/jmxquery.jar
+#/bin/cp jmxquery.jar ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/jmxquery.jar
 install -m 755 jmxquery.jar ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/jmxquery.jar
-/bin/cp check_mem.pl ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_mem.pl
+#/bin/cp check_mem.pl ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_mem.pl
 install -m 755 check_mem.pl ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_mem.pl
-/bin/cp check_multi ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_multi
+#/bin/cp check_multi ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_multi
 install -m 755 check_multi ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_multi
-/bin/cp check_esx.pl ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_esx.pl
+#/bin/cp check_esx.pl ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_esx.pl
 install -m 755 check_esx.pl ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_esx.pl
-/bin/cp check_memcached ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_memcached
+#/bin/cp check_memcached ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_memcached
 install -m 755 check_memcached ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_memcached
-/bin/cp check_nfsmounts ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_nfsmounts
+#/bin/cp check_nfsmounts ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_nfsmounts
 install -m 755 check_nfsmounts ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_nfsmounts
-/bin/cp check_sqljob.sh ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_sqljob.sh
+#/bin/cp check_sqljob.sh ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_sqljob.sh
 install -m 755 check_sqljob.sh ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_sqljob.sh
-/bin/cp get_stats_memcache ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/get_stats_memcache
+#/bin/cp get_stats_memcache ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/get_stats_memcache
 install -m 755 get_stats_memcache ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/get_stats_memcache
-/bin/cp jmxquery.jar ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/jmxquery.jar
+#/bin/cp jmxquery.jar ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/jmxquery.jar
 install -m 755 jmxquery.jar ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/jmxquery.jar
-/bin/cp sqljdbc.jar ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/sqljdbc.jar
+#/bin/cp sqljdbc.jar ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/sqljdbc.jar
 install -m 755 sqljdbc.jar ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/sqljdbc.jar
-/bin/cp SqlJobMon.class ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/SqlJobMon.class
+#/bin/cp SqlJobMon.class ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/SqlJobMon.class
 install -m 755 SqlJobMon.class ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/SqlJobMon.class
-/bin/cp url.properties ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/url.properties
+#/bin/cp url.properties ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/url.properties
 install -m 755 url.properties ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/url.properties
-/bin/cp check_dell_bladechassis ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_dell_bladechassis
+#/bin/cp check_dell_bladechassis ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_dell_bladechassis
 install -m 755 check_dell_bladechassis ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_dell_bladechassis
-/bin/cp check_hp_bladechassis ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_hp_bladechassis
+#/bin/cp check_hp_bladechassis ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_hp_bladechassis
 install -m 755 check_hp_bladechassis ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_hp_bladechassis
+#/bin/cp check_puppet_log.sh ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_puppet_log.sh
+install -m 755 check_puppet_log.sh ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_puppet_log.sh
+#/bin/cp check_puppet_wrapper ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_puppet_wrapper
+install -m 4755 check_puppet_wrapper ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_puppet_wrapper
+install -m 755 check_fs_ro.sh ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_fs_ro.sh
+install -m 755 check_puppet_version.sh ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_puppet_version.sh
 
 %files
+%defattr(4755,root,root,755)
+%_libdir/nagios/plugins/check_puppet_wrapper
 %defattr(755,root,root,755)
+%_libdir/nagios/plugins/check_puppet_log.sh
+%_libdir/nagios/plugins/check_fs_ro.sh
+%_libdir/nagios/plugins/check_puppet_version.sh
 %_libdir/nagios/plugins/check_cpu.sh
 %_libdir/nagios/plugins/check_drbd-0.5.2
 %_libdir/nagios/plugins/check_file.pl
