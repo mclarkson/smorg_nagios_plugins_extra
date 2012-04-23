@@ -24,158 +24,158 @@ Adds additional plugins to the Nagios plugins folder
 
 %pre
 # using the correct library location for the box arch remove the files
-if [ -f %_libdir/nagios/plugins/check_cpu.sh ]
-then
-        mv %_libdir/nagios/plugins/check_cpu.sh %_libdir/nagios/plugins/check_cpu.sh.rpmsave
-fi
-if [ -f %_libdir/nagios/plugins/check_drbd-0.5.2 ]
-then
-        mv %_libdir/nagios/plugins/check_drbd-0.5.2 %_libdir/nagios/plugins/check_drbd-0.5.2.rpmsave
-fi
-if [ -f %_libdir/nagios/plugins/check_file.pl ]
-then
-        mv %_libdir/nagios/plugins/check_file.pl %_libdir/nagios/plugins/check_file.pl.rpmsave
-fi
-if [ -f %_libdir/nagios/plugins/check_heartbeat_nodes ]
-then
-        mv %_libdir/nagios/plugins/check_heartbeat_nodes %_libdir/nagios/plugins/check_heartbeat_nodes.rpmsave
-fi
-if [ -f %_libdir/nagios/plugins/check_hpasm ]
-then
-mv      %_libdir/nagios/plugins/check_hpasm %_libdir/nagios/plugins/check_hpasm.rpmsave
-fi
-if [ -f %_libdir/nagios/plugins/check_hpasm_noacu ]
-then
-        mv %_libdir/nagios/plugins/check_hpasm_noacu %_libdir/nagios/plugins/check_hpasm_noacu.rpmsave
-fi
-if [ -f %_libdir/nagios/plugins/check_ilo2_health.pl ]
-then
-        mv %_libdir/nagios/plugins/check_ilo2_health.pl %_libdir/nagios/plugins/check_ilo2_health.pl.rpmsave
-fi
-if [ -f %_libdir/nagios/plugins/check_iostat ]
-then
-        mv %_libdir/nagios/plugins/check_iostat %_libdir/nagios/plugins/check_iostat.rpmsave
-fi
-if [ -f %_libdir/nagios/plugins/check_jboss ]
-then
-        mv %_libdir/nagios/plugins/check_jboss %_libdir/nagios/plugins/check_jboss.rpmsave
-fi
-if [ -f %_libdir/nagios/plugins/check_jboss.pl ]
-then
-        mv %_libdir/nagios/plugins/check_jboss.pl %_libdir/nagios/plugins/check_jboss.pl.rpmsave
-fi
-if [ -f %_libdir/nagios/plugins/check_logfiles ]
-then
-        mv %_libdir/nagios/plugins/check_logfiles %_libdir/nagios/plugins/check_logfiles.rpmsave
-fi
-if [ -f %_libdir/nagios/plugins/check_mysql_health ]
-then
-        mv %_libdir/nagios/plugins/check_mysql_health %_libdir/nagios/plugins/check_mysql_health.rpmsave
-fi
-if [ -f %_libdir/nagios/plugins/check_netio_1.1 ]
-then
-        mv %_libdir/nagios/plugins/check_netio_1.1 %_libdir/nagios/plugins/check_netio_1.1.rpmsave
-fi
-if [ -f %_libdir/nagios/plugins/check_netio.ncfg ]
-then
-        mv %_libdir/nagios/plugins/check_netio.ncfg %_libdir/nagios/plugins/check_netio.ncfg.rpmsave
-fi
-if [ -f %_libdir/nagios/plugins/check_om_storage.pl ]
-then
-        mv %_libdir/nagios/plugins/check_om_storage.pl %_libdir/nagios/plugins/check_om_storage.pl.rpmsave
-fi
-if [ -f %_libdir/nagios/plugins/check_openmanage ]
-then
-        mv %_libdir/nagios/plugins/check_openmanage %_libdir/nagios/plugins/check_openmanage.rpmsave
-fi
-if [ -f %_libdir/nagios/plugins/check_rofs.sh ]
-then
-        mv %_libdir/nagios/plugins/check_rofs.sh %_libdir/nagios/plugins/check_rofs.sh.rpmsave
-fi
-if [ -f %_libdir/nagios/plugins/check_ssl_cert ]
-then
-        mv %_libdir/nagios/plugins/check_ssl_cert %_libdir/nagios/plugins/check_ssl_cert.rpmsave
-fi
-if [ -f %_libdir/nagios/plugins/check_uptime.pl ]
-then
-        mv %_libdir/nagios/plugins/check_uptime.pl %_libdir/nagios/plugins/check_uptime.pl.rpmsave
-fi
-if [ -f %_libdir/nagios/plugins/show_users.sh ]
-then
-        mv %_libdir/nagios/plugins/show_users.sh %_libdir/nagios/plugins/show_users.sh.rpmsave
-fi
-if [ -f %_libdir/nagios/plugins/check_jmx ]
-then
-        mv %_libdir/nagios/plugins/check_jmx %_libdir/nagios/plugins/check_jmx.rpmsave
-fi
-if [ -f %_libdir/nagios/plugins/jmxquery.jar ]
-then
-        mv %_libdir/nagios/plugins/jmxquery.jar %_libdir/nagios/plugins/jmxquery.jar.rpmsave
-fi
-if [ -f %_libdir/nagios/plugins/check_mem.pl ]
-then
-        mv %_libdir/nagios/plugins/check_mem.pl %_libdir/nagios/plugins/check_mem.pl.rpmsave
-fi
-if [ -f %_libdir/nagios/plugins/check_multi ]
-then
-        mv %_libdir/nagios/plugins/check_multi %_libdir/nagios/plugins/check_multi.rpmsave
-fi
-if [ -f %_libdir/nagios/plugins/check_esx.pl ]
-then
-        mv %_libdir/nagios/plugins/check_esx.pl %_libdir/nagios/plugins/check_esx.pl.rpmsave
-fi
-if [ -f %_libdir/nagios/plugins/check_memcached ]
-then
-        mv %_libdir/nagios/plugins/check_memcached %_libdir/nagios/plugins/check_memcached.rpmsave
-fi
-if [ -f %_libdir/nagios/plugins/check_nfsmounts ]
-then
-        mv %_libdir/nagios/plugins/check_nfsmounts %_libdir/nagios/plugins/check_nfsmounts.rpmsave
-fi
-if [ -f %_libdir/nagios/plugins/check_sqljob.sh ]
-then
-        mv %_libdir/nagios/plugins/check_sqljob.sh %_libdir/nagios/plugins/check_sqljob.sh.rpmsave
-fi
-if [ -f %_libdir/nagios/plugins/get_stats_memcache ]
-then
-        mv %_libdir/nagios/plugins/get_stats_memcache %_libdir/nagios/plugins/get_stats_memcache.rpmsave
-fi
-if [ -f %_libdir/nagios/plugins/sqljdbc.jar ]
-then
-        mv %_libdir/nagios/plugins/sqljdbc.jar %_libdir/nagios/plugins/sqljdbc.jar.rpmsave
-fi
-if [ -f %_libdir/nagios/plugins/SqlJobMon.class ]
-then
-        mv %_libdir/nagios/plugins/SqlJobMon.class %_libdir/nagios/plugins/SqlJobMon.class.rpmsave
-fi
-if [ -f %_libdir/nagios/plugins/url.properties ]
-then
-        mv %_libdir/nagios/plugins/url.properties %_libdir/nagios/plugins/url.properties.rpmsave
-fi
-if [ -f %_libdir/nagios/plugins/check_dell_bladechassis ]
-then
-        mv %_libdir/nagios/plugins/check_dell_bladechassis %_libdir/nagios/plugins/check_dell_bladechassis.rpmsave
-fi
-if [ -f %_libdir/nagios/plugins/check_hp_bladechassis ]
-then
-        mv %_libdir/nagios/plugins/check_hp_bladechassis %_libdir/nagios/plugins/check_hp_bladechassis.rpmsave
-fi
-if [ -f %_libdir/nagios/plugins/check_puppet_log.sh ]
-then
-        mv %_libdir/nagios/plugins/check_puppet_log.sh %_libdir/nagios/plugins/check_puppet_log.sh.rpmsave
-fi
-if [ -f %_libdir/nagios/plugins/check_puppet_wrapper ]
-then
-        mv %_libdir/nagios/plugins/check_puppet_wrapper %_libdir/nagios/plugins/check_puppet_wrapper.rpmsave
-fi
-if [ -f %_libdir/nagios/plugins/check_fs_ro.sh ]
-then
-        mv %_libdir/nagios/plugins/check_fs_ro.sh %_libdir/nagios/plugins/check_fs_ro.sh.rpmsave
-fi
-if [ -f %_libdir/nagios/plugins/check_puppet_version.sh ]
-then
-        mv %_libdir/nagios/plugins/check_puppet_version.sh %_libdir/nagios/plugins/check_puppet_version.sh.rpmsave
-fi
+#if [ -f %_libdir/nagios/plugins/check_cpu.sh ]
+#then
+#        mv %_libdir/nagios/plugins/check_cpu.sh %_libdir/nagios/plugins/check_cpu.sh.rpmsave
+#fi
+#if [ -f %_libdir/nagios/plugins/check_drbd-0.5.2 ]
+#then
+#        mv %_libdir/nagios/plugins/check_drbd-0.5.2 %_libdir/nagios/plugins/check_drbd-0.5.2.rpmsave
+#fi
+#if [ -f %_libdir/nagios/plugins/check_file.pl ]
+#then
+#        mv %_libdir/nagios/plugins/check_file.pl %_libdir/nagios/plugins/check_file.pl.rpmsave
+#fi
+#if [ -f %_libdir/nagios/plugins/check_heartbeat_nodes ]
+#then
+#        mv %_libdir/nagios/plugins/check_heartbeat_nodes %_libdir/nagios/plugins/check_heartbeat_nodes.rpmsave
+#fi
+#if [ -f %_libdir/nagios/plugins/check_hpasm ]
+#then
+#mv      %_libdir/nagios/plugins/check_hpasm %_libdir/nagios/plugins/check_hpasm.rpmsave
+#fi
+#if [ -f %_libdir/nagios/plugins/check_hpasm_noacu ]
+#then
+#        mv %_libdir/nagios/plugins/check_hpasm_noacu %_libdir/nagios/plugins/check_hpasm_noacu.rpmsave
+#fi
+#if [ -f %_libdir/nagios/plugins/check_ilo2_health.pl ]
+#then
+#        mv %_libdir/nagios/plugins/check_ilo2_health.pl %_libdir/nagios/plugins/check_ilo2_health.pl.rpmsave
+#fi
+#if [ -f %_libdir/nagios/plugins/check_iostat ]
+#then
+#        mv %_libdir/nagios/plugins/check_iostat %_libdir/nagios/plugins/check_iostat.rpmsave
+#fi
+#if [ -f %_libdir/nagios/plugins/check_jboss ]
+#then
+#        mv %_libdir/nagios/plugins/check_jboss %_libdir/nagios/plugins/check_jboss.rpmsave
+#fi
+#if [ -f %_libdir/nagios/plugins/check_jboss.pl ]
+#then
+#        mv %_libdir/nagios/plugins/check_jboss.pl %_libdir/nagios/plugins/check_jboss.pl.rpmsave
+#fi
+#if [ -f %_libdir/nagios/plugins/check_logfiles ]
+#then
+#        mv %_libdir/nagios/plugins/check_logfiles %_libdir/nagios/plugins/check_logfiles.rpmsave
+#fi
+#if [ -f %_libdir/nagios/plugins/check_mysql_health ]
+#then
+#        mv %_libdir/nagios/plugins/check_mysql_health %_libdir/nagios/plugins/check_mysql_health.rpmsave
+#fi
+#if [ -f %_libdir/nagios/plugins/check_netio_1.1 ]
+#then
+#        mv %_libdir/nagios/plugins/check_netio_1.1 %_libdir/nagios/plugins/check_netio_1.1.rpmsave
+#fi
+#if [ -f %_libdir/nagios/plugins/check_netio.ncfg ]
+#then
+#        mv %_libdir/nagios/plugins/check_netio.ncfg %_libdir/nagios/plugins/check_netio.ncfg.rpmsave
+#fi
+#if [ -f %_libdir/nagios/plugins/check_om_storage.pl ]
+#then
+#        mv %_libdir/nagios/plugins/check_om_storage.pl %_libdir/nagios/plugins/check_om_storage.pl.rpmsave
+#fi
+#if [ -f %_libdir/nagios/plugins/check_openmanage ]
+#then
+#        mv %_libdir/nagios/plugins/check_openmanage %_libdir/nagios/plugins/check_openmanage.rpmsave
+#fi
+#if [ -f %_libdir/nagios/plugins/check_rofs.sh ]
+#then
+#        mv %_libdir/nagios/plugins/check_rofs.sh %_libdir/nagios/plugins/check_rofs.sh.rpmsave
+#fi
+#if [ -f %_libdir/nagios/plugins/check_ssl_cert ]
+#then
+#        mv %_libdir/nagios/plugins/check_ssl_cert %_libdir/nagios/plugins/check_ssl_cert.rpmsave
+#fi
+#if [ -f %_libdir/nagios/plugins/check_uptime.pl ]
+#then
+#        mv %_libdir/nagios/plugins/check_uptime.pl %_libdir/nagios/plugins/check_uptime.pl.rpmsave
+#fi
+#if [ -f %_libdir/nagios/plugins/show_users.sh ]
+#then
+#        mv %_libdir/nagios/plugins/show_users.sh %_libdir/nagios/plugins/show_users.sh.rpmsave
+#fi
+#if [ -f %_libdir/nagios/plugins/check_jmx ]
+#then
+#        mv %_libdir/nagios/plugins/check_jmx %_libdir/nagios/plugins/check_jmx.rpmsave
+#fi
+#if [ -f %_libdir/nagios/plugins/jmxquery.jar ]
+#then
+#        mv %_libdir/nagios/plugins/jmxquery.jar %_libdir/nagios/plugins/jmxquery.jar.rpmsave
+#fi
+#if [ -f %_libdir/nagios/plugins/check_mem.pl ]
+#then
+#        mv %_libdir/nagios/plugins/check_mem.pl %_libdir/nagios/plugins/check_mem.pl.rpmsave
+#fi
+#if [ -f %_libdir/nagios/plugins/check_multi ]
+#then
+#        mv %_libdir/nagios/plugins/check_multi %_libdir/nagios/plugins/check_multi.rpmsave
+#fi
+#if [ -f %_libdir/nagios/plugins/check_esx.pl ]
+#then
+#        mv %_libdir/nagios/plugins/check_esx.pl %_libdir/nagios/plugins/check_esx.pl.rpmsave
+#fi
+#if [ -f %_libdir/nagios/plugins/check_memcached ]
+#then
+#        mv %_libdir/nagios/plugins/check_memcached %_libdir/nagios/plugins/check_memcached.rpmsave
+#fi
+#if [ -f %_libdir/nagios/plugins/check_nfsmounts ]
+#then
+#        mv %_libdir/nagios/plugins/check_nfsmounts %_libdir/nagios/plugins/check_nfsmounts.rpmsave
+#fi
+#if [ -f %_libdir/nagios/plugins/check_sqljob.sh ]
+#then
+#        mv %_libdir/nagios/plugins/check_sqljob.sh %_libdir/nagios/plugins/check_sqljob.sh.rpmsave
+#fi
+#if [ -f %_libdir/nagios/plugins/get_stats_memcache ]
+#then
+#        mv %_libdir/nagios/plugins/get_stats_memcache %_libdir/nagios/plugins/get_stats_memcache.rpmsave
+#fi
+#if [ -f %_libdir/nagios/plugins/sqljdbc.jar ]
+#then
+#        mv %_libdir/nagios/plugins/sqljdbc.jar %_libdir/nagios/plugins/sqljdbc.jar.rpmsave
+#fi
+#if [ -f %_libdir/nagios/plugins/SqlJobMon.class ]
+#then
+#        mv %_libdir/nagios/plugins/SqlJobMon.class %_libdir/nagios/plugins/SqlJobMon.class.rpmsave
+#fi
+#if [ -f %_libdir/nagios/plugins/url.properties ]
+#then
+#        mv %_libdir/nagios/plugins/url.properties %_libdir/nagios/plugins/url.properties.rpmsave
+#fi
+#if [ -f %_libdir/nagios/plugins/check_dell_bladechassis ]
+#then
+#        mv %_libdir/nagios/plugins/check_dell_bladechassis %_libdir/nagios/plugins/check_dell_bladechassis.rpmsave
+#fi
+#if [ -f %_libdir/nagios/plugins/check_hp_bladechassis ]
+#then
+#        mv %_libdir/nagios/plugins/check_hp_bladechassis %_libdir/nagios/plugins/check_hp_bladechassis.rpmsave
+#fi
+#if [ -f %_libdir/nagios/plugins/check_puppet_log.sh ]
+#then
+#        mv %_libdir/nagios/plugins/check_puppet_log.sh %_libdir/nagios/plugins/check_puppet_log.sh.rpmsave
+#fi
+#if [ -f %_libdir/nagios/plugins/check_puppet_wrapper ]
+#then
+#        mv %_libdir/nagios/plugins/check_puppet_wrapper %_libdir/nagios/plugins/check_puppet_wrapper.rpmsave
+#fi
+#if [ -f %_libdir/nagios/plugins/check_fs_ro.sh ]
+#then
+#        mv %_libdir/nagios/plugins/check_fs_ro.sh %_libdir/nagios/plugins/check_fs_ro.sh.rpmsave
+#fi
+#if [ -f %_libdir/nagios/plugins/check_puppet_version.sh ]
+#then
+#        mv %_libdir/nagios/plugins/check_puppet_version.sh %_libdir/nagios/plugins/check_puppet_version.sh.rpmsave
+#fi
 
 
 
@@ -313,6 +313,8 @@ install -m 755 check_puppet_version.sh ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/
 %{__rm} -rf %{buildroot}
 
 %changelog
+* Mon Apr 23 2012 Mark Clarkson <mark.clarkson@smorg.co.uk>
+- Added check_puppet_wrapper, check_puppet_log.sh, check_fs_ro.sh and check_puppet_version.sh.
 * Mon Nov 15 2010 Darrin Wilkinson <darrin.wilkinson@nokia.com>
 - Added check_dell_bladechassis and check_hp_bladechassis
 * Thu Oct 18 2010 Darrin Wilkinson <darrin.wilkinson@nokia.com>
