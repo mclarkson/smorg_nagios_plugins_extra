@@ -104,7 +104,8 @@ main()
         echo "WARNING: Puppet run did not complete. Error was 'Could not retrieve catalog'."
         retval=$NAGWARN
     else
-        betweenlinenos=`egrep -n "(puppet-agent|puppetd).*Finished catalog run" $LOGFILE \
+        betweenlinenos=`egrep -n -e "(puppet-agent|puppetd).*Finished catalog run" \
+            -e "(puppet-agent|puppetd).* Starting Puppet client" $LOGFILE \
             | tail -2 | sed 's/:.*//'`
         read a b < <( echo $betweenlinenos )
         lines=`sed -n "$a,$b {p}" $LOGFILE`
