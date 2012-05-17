@@ -76,7 +76,6 @@ warn_written=`echo $warning | cut -d, -f3`
 # first run of iostat shows statistics since last reboot, second one shows current vaules of hdd
 # Doing the actual check:
 output=`$iostat $disk -m -d $TIMEOUT 2 | grep $disk | awk '{print $1,$2,$3,$4}' | tail -1`
-echo "$output"
 tps=`echo "$output" | awk '{print $2}'`
 read=`echo "$output" | awk '{print $3}'`
 written=`echo "$output" | awk '{print $4}'`
