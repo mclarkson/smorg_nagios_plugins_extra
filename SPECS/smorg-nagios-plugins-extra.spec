@@ -315,6 +315,7 @@ install -m 755 check_puppet_version.sh ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/
 %changelog
 * Thu May 17 2012 Mark Clarkson <mark.clarkson@smorg.co.uk>
 - Cleaned check_puppet_log.sh and added sudo support via -s option.
+- Modified check_iostat to be more accurate and performant.
 * Mon Apr 23 2012 Mark Clarkson <mark.clarkson@smorg.co.uk>
 - Added check_puppet_wrapper, check_puppet_log.sh, check_fs_ro.sh and check_puppet_version.sh.
 * Mon Nov 15 2010 Darrin Wilkinson <darrin.wilkinson@nokia.com>

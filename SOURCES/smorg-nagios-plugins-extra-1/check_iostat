@@ -2,8 +2,29 @@
 #
 # Version 0.0.2 - Jan/2009
 # Changes: added device verification
-#
+#          
 # by Thiago Varela - thiago@iplenix.com
+#
+# --------------------------------------
+#
+# Version 0.0.3 - Dec/2011
+# Changes: 
+#  - changed values from bytes to mbytes
+#  - fixed bug to get traffic data without comma but point
+#  - current values are displayed now, not average values (first run of iostat)
+#
+# by Philipp Niedziela - pn@pn-it.com
+# 
+# Version 0.0.4 - May/2012
+# Changes: 
+#  - Do a single iostat (not 3) and for longer to get a better average.
+#  - Simplified code with 'tail'. Tail is everywhere right?
+#  - Added TIMEOUT variable.
+#
+# by Mark Clarkson - mark.clarkson@smorg.co.uk
+
+# Set this to less than the nrpe/nagios timeout values. Bigger numbers give more accurate results.
+TIMEOUT=50
 
 iostat=`which iostat 2>/dev/null`
 bc=`which bc 2>/dev/null`
@@ -15,7 +36,7 @@ echo -e "\n\tThis plugin shows the I/O usage of the specified disk, using the io
 
 # Ensuring we have the needed tools:
 ( [ ! -f $iostat ] || [ ! -f $bc ] ) && \
-	( echo "ERROR: You must have iostat and bc installed in order to run this plugin" && exit -1 )
+	( echo "ERROR: You must have iostat and bc installed in order to run this plugin\n\tuse: apt-get install iostat bc\n" && exit -1 )
 
 # Getting parameters:
 while getopts "d:w:c:h" OPT; do
@@ -26,7 +47,6 @@ while getopts "d:w:c:h" OPT; do
 		"h") help;;
 	esac
 done
-
 # Adjusting the three warn and crit levels:
 crit_tps=`echo $critical | cut -d, -f1`
 crit_read=`echo $critical | cut -d, -f2`
@@ -38,7 +58,7 @@ warn_written=`echo $warning | cut -d, -f3`
 
 
 # Checking parameters:
-[ ! -b "/dev/$disk" ] && echo "ERROR: Device incorrectly specified" && help
+#[ ! -b "/dev/$disk" ] && echo "ERROR: Device incorrectly specified" && help
 
 ( [ "$warn_tps" == "" ] || [ "$warn_read" == "" ] || [ "$warn_written" == "" ] || \
   [ "$crit_tps" == "" ] || [ "$crit_read" == "" ] || [ "$crit_written" == "" ] ) &&
@@ -50,19 +70,31 @@ warn_written=`echo $warning | cut -d, -f3`
   echo "ERROR: critical levels must be highter than warning levels" && help
 
 
+# iostat parameters:
+#   -m: megabytes
+#   -k: kilobytes
+# first run of iostat shows statistics since last reboot, second one shows current vaules of hdd
 # Doing the actual check:
-tps=`$iostat $disk | grep $disk | awk '{print $2}'`
-kbread=`$iostat $disk | grep $disk | awk '{print $3}'`
-kbwritten=`$iostat $disk | grep $disk | awk '{print $4}'`
+output=`$iostat $disk -m -d $TIMEOUT 2 | grep $disk | awk '{print $1,$2,$3,$4}' | tail -1`
+echo "$output"
+tps=`echo "$output" | awk '{print $2}'`
+read=`echo "$output" | awk '{print $3}'`
+written=`echo "$output" | awk '{print $4}'`
+
+
+# "Converting" values to float (string replace , with .)
+tps=${tps/,/.}
+read=${read/,/.}
+written=${written/,/.}
 
 
 # Comparing the result and setting the correct level:
-if ( [ "`echo "$tps >= $crit_tps" | bc`" == "1" ] || [ "`echo "$kbread >= $crit_read" | bc`" == "1" ] || \
-     [ "`echo "$kbwritten >= $crit_written" | bc`" == "1" ] ); then
+if ( [ "`echo "$tps >= $crit_tps" | bc`" == "1" ] || [ "`echo "$read >= $crit_read" | bc -q`" == "1" ] || \
+     [ "`echo "$written >= $crit_written" | bc`" == "1" ] ); then
         msg="CRITICAL"
         status=2
-else if ( [ "`echo "$tps >= $warn_tps" | bc`" == "1" ] || [ "`echo "$kbread >= $warn_read" | bc`" == "1" ] || \
-          [ "`echo "$kbwritten >= $warn_written" | bc`" == "1" ] ); then
+else if ( [ "`echo "$tps >= $warn_tps" | bc`" == "1" ] || [ "`echo "$read >= $warn_read" | bc`" == "1" ] || \
+          [ "`echo "$written >= $warn_written" | bc`" == "1" ] ); then
         	msg="WARNING"
         	status=1
      else
@@ -72,7 +104,8 @@ else if ( [ "`echo "$tps >= $warn_tps" | bc`" == "1" ] || [ "`echo "$kbread >= $
 fi
 
 # Printing the results:
-echo "$msg - I/O stats tps=$tps KB_read/s=$kbread KB_written/s=$kbwritten | 'tps'=$tps; 'KB_read/s'=$kbread; 'KB_written/s'=$kbwritten;"
+echo "$msg - I/O stats tps=$tps MB_read/s=$read MB_written/s=$written | 'tps'=$tps; 'MB_read/s'=$read; 'MB_written/s'=$written;"
 
 # Bye!
 exit $status
+
