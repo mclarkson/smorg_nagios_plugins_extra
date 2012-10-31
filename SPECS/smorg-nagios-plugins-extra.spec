@@ -210,6 +210,8 @@ install -m 755 check_jboss ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_jboss
 install -m 755 check_jboss.pl ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_jboss.pl
 #/bin/cp check_logfiles ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_logfiles
 install -m 755 check_logfiles ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_logfiles
+#/bin/cp check_logfiles_wrapper ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_logfiles_wrapper
+install -m 4755 check_logfiles_wrapper ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_logfiles_wrapper
 #/bin/cp check_mysql_health ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_mysql_health
 install -m 755 check_mysql_health ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_mysql_health
 #/bin/cp check_netio_1.1 ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_netio_1.1
@@ -268,6 +270,7 @@ install -m 755 check_puppet_version.sh ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/
 %files
 %defattr(4755,root,root,755)
 %_libdir/nagios/plugins/check_puppet_wrapper
+%_libdir/nagios/plugins/check_logfiles_wrapper
 %defattr(755,root,root,755)
 %_libdir/nagios/plugins/check_puppet_log.sh
 %_libdir/nagios/plugins/check_fs_ro.sh
@@ -313,6 +316,8 @@ install -m 755 check_puppet_version.sh ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/
 %{__rm} -rf %{buildroot}
 
 %changelog
+* Wed Oct 31 2012 Mark Clarkson <mark.clarkson@smorg.co.uk>
+- Added check_logfiles_wrapper suid binary.
 * Thu May 17 2012 Mark Clarkson <mark.clarkson@smorg.co.uk>
 - Cleaned check_puppet_log.sh and added sudo support via -s option.
 - Modified check_iostat to be more accurate and performant.
