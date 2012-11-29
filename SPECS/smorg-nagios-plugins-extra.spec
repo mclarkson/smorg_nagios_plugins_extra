@@ -35,8 +35,10 @@ install -d -m 0755 ${RPM_BUILD_ROOT}%_libdir/nagios/plugins
 install -m 4755 check_logfiles_wrapper ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_logfiles_wrapper
 install -m 4755 check_puppet_wrapper ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_puppet_wrapper
 install -m 755 SqlJobMon.class ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/SqlJobMon.class
+install -m 755 check_all_diskstat.sh ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_all_diskstat.sh
 install -m 755 check_cpu.sh ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_cpu.sh
 install -m 755 check_dell_bladechassis ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_dell_bladechassis
+install -m 755 check_diskstat.sh ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_diskstat.sh
 install -m 755 check_drbd-0.5.2 ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_drbd-0.5.2
 install -m 755 check_esx.pl ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_esx.pl
 install -m 755 check_file.pl ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_file.pl
@@ -80,8 +82,10 @@ install -m 755 url.properties ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/url.prope
 %_libdir/nagios/plugins/check_logfiles_wrapper
 %defattr(755,root,root,755)
 %_libdir/nagios/plugins/SqlJobMon.class
+%_libdir/nagios/plugins/check_all_diskstat.sh
 %_libdir/nagios/plugins/check_cpu.sh
 %_libdir/nagios/plugins/check_dell_bladechassis
+%_libdir/nagios/plugins/check_diskstat.sh
 %_libdir/nagios/plugins/check_drbd-0.5.2
 %_libdir/nagios/plugins/check_esx.pl
 %_libdir/nagios/plugins/check_file.pl
@@ -124,6 +128,8 @@ install -m 755 url.properties ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/url.prope
 %{__rm} -rf %{buildroot}
 
 %changelog
+* Thu Nov 29 2012 Mark Clarkson <mark.clarkson@smorg.co.uk>
+- Added check_diskstat.sh and check_all_diskstat.sh checks.
 * Fri Nov 23 2012 Mark Clarkson <mark.clarkson@smorg.co.uk>
 - Added check_statusdat_latency check.
 * Wed Oct 31 2012 Mark Clarkson <mark.clarkson@smorg.co.uk>
