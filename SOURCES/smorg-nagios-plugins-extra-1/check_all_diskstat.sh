@@ -1,6 +1,6 @@
 #!/bin/bash
 
-CHK=./check_diskstat.sh
+CHK=/usr/lib64/nagios/plugins/check_diskstat.sh
 WARN=${1:-"200,10000,10000"}
 CRIT=${2:-"300,20000,20000"}
 
