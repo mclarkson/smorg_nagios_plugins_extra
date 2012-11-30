@@ -1,6 +1,8 @@
 %define name smorg-nagios-plugins-extra
 %define version 1
 %define release 1.12
+# RH6 is more strict (and it's right! - the 'wrapper's should be built here)
+%define debug_package %{nil}
 
 Summary: Package to deploy additional Nagios plugins
 Name: smorg-nagios-plugins-extra
