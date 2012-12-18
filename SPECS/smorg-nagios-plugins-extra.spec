@@ -49,6 +49,8 @@ install -m 755 check_heartbeat_nodes ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/ch
 install -m 755 check_hp_bladechassis ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_hp_bladechassis
 install -m 755 check_hpasm ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_hpasm
 install -m 755 check_hpasm_noacu ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_hpasm_noacu
+install -m 755 check_iftraffic_nrpe.pl ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_iftraffic_nrpe.pl
+install -m 755 check_iftraffic_nrpe.py ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_iftraffic_nrpe.py
 install -m 755 check_ilo2_health.pl ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_ilo2_health.pl
 install -m 755 check_iostat ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_iostat
 install -m 755 check_jboss ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_jboss
@@ -96,6 +98,8 @@ install -m 755 url.properties ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/url.prope
 %_libdir/nagios/plugins/check_hp_bladechassis
 %_libdir/nagios/plugins/check_hpasm
 %_libdir/nagios/plugins/check_hpasm_noacu
+%_libdir/nagios/plugins/check_iftraffic_nrpe.pl
+%_libdir/nagios/plugins/check_iftraffic_nrpe.py
 %_libdir/nagios/plugins/check_ilo2_health.pl
 %_libdir/nagios/plugins/check_iostat
 %_libdir/nagios/plugins/check_jboss
@@ -130,6 +134,9 @@ install -m 755 url.properties ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/url.prope
 %{__rm} -rf %{buildroot}
 
 %changelog
+* Tue Dec 19 2012 Mark Clarkson <mark.clarkson@smorg.co.uk>
+- Added check_iftraffic_nrpe.pl and check_iftraffic_nrpe.py checks.
+  New dependency, python-argparse needed but NOT added.
 * Thu Nov 29 2012 Mark Clarkson <mark.clarkson@smorg.co.uk>
 - Added check_diskstat.sh and check_all_diskstat.sh checks.
 * Fri Nov 23 2012 Mark Clarkson <mark.clarkson@smorg.co.uk>
