@@ -1,0 +1,337 @@
+#!/bin/bash
+# Copyright(C) 2012 Mark Clarkson <mark.clarkson@smorg.co.uk>
+#
+#    This software is provided under the terms of the GNU
+#    General Public License (GPL), as published at: 
+#    http://www.gnu.org/licenses/gpl.html .
+#
+# File:     check_switch_ifs_zeroconf
+# Date:     21 Dec 2012
+# Version:  0.10
+#
+# Purpose:  Check that both psu units are present. A removed psu will not
+#           be detected by other hardware check scripts since there is no
+#           actual fault.
+#
+# Notes:
+#
+
+
+# ---------------------------------------------------------------------------
+# DEFAULTS (Change as necessary)
+# ---------------------------------------------------------------------------
+
+# Use snmpbulkwalk if it's available - it's more efficient
+snmpwalk=snmpbulkwalk
+#snmpwalk=snmpwalk
+
+# ---------------------------------------------------------------------------
+# DON'T TOUCH ANYTHING BELOW
+# ---------------------------------------------------------------------------
+
+declare -i gnumrecords=0
+
+ME="$0"
+CMDLINE="$@"
+TRUE=1
+FALSE=0
+VERSION="0.11"
+OK=0
+WARN=1
+CRIT=2
+UNKN=3
+
+COMMUNITY=
+LIST=$FALSE
+INCFILT=.
+EXCFILT=WonTmAtChIhoPe
+
+# Global arrays to store all details in - should all be the same size.
+declare -a entPhysicalDescr
+declare -a entPhysicalDescr_id
+declare -a entPhysicalContainedIn
+declare -a entPhysicalContainedIn_id
+declare -a entPhysicalClass
+declare -a entPhysicalClass_id
+declare -a show
+declare -a alert
+
+
+entPhysicalDescr_oid=1.3.6.1.2.1.47.1.1.1.1.2
+entPhysicalContainedIn_oid=1.3.6.1.2.1.47.1.1.1.1.4
+entPhysicalClass_oid=1.3.6.1.2.1.47.1.1.1.1.5
+
+# See CISCO-ENTITY-FRU-CONTROL-MIB
+#declare -a PowerRedundancyType=(
+#                    "dummy"               # <- not used, dummy for index 0
+#                    "notsupported"
+#                    "redundant"
+#                    "combined"
+#                    "nonredundant"
+#                    "psredundant"
+#                    "inpwrsrcredundant"
+#                    "psredundantsingleinput"
+#                  )
+
+# See ENTITY-MIB
+declare -a entPhysicalClass_t=(
+                    "dummy"               # <- not used, dummy for index 0
+                    "other"
+                    "unknown"
+                    "chassis"
+                    "backplane"
+                    "container"
+                    "powerSupply"
+                    "fan"
+                    "sensor"
+                    "module"
+                    "port"
+                    "stack"
+                    "cpu"
+                  )
+
+# Nagios status
+declare -a AlertStatus=(
+                    "OK"
+                    "WARNING"
+                    "CRITICAL"
+                    "Unknown"
+                  )
+
+# ---------------------------------------------------------------------------
+main()
+# ---------------------------------------------------------------------------
+# Execution begins and ends here.
+{
+    local -i numinterfaces candwidth col1width retval
+    local i t comma
+
+    retval=$OK
+
+    parse_options "$@"
+
+    pass_sanitychecks_or_quit
+
+    fill_arrays
+
+    [[ $LIST -eq $TRUE ]] && {
+        printf "%-9s %-47s %-13s %-10s\n" "id" \
+            "Description" \
+            "Class" \
+            "ContainedIn"
+        printf "%-9s %-47s %-13s %-10s\n" "--" \
+            "-----------" \
+            "-----" \
+            "-----------"
+        for i in `seq 0 $((gnumrecords-1))`; do
+            printf "%-9s %-47s %-13s %-10s\n" \
+                "${entPhysicalDescr_id[i]}" \
+                "${entPhysicalDescr[i]}" \
+                "${entPhysicalClass_t[${entPhysicalClass[i]}]}" \
+                "${entPhysicalContainedIn[i]}"
+        done
+        exit $OK
+    }
+
+    statustext=`psu_alert_status` ; retval=$?
+
+    if [[ $retval -eq $OK ]]; then
+        echo "OK: $statustext"
+    elif [[ $retval -eq $WARN ]]; then
+        echo "WARNING: $statustext"
+    elif [[ $retval -eq $CRIT ]]; then
+        echo "CRITICAL: $statustext"
+    else
+        echo "Unknown: $statustext"
+    fi
+
+    exit $retval
+}
+
+# ---------------------------------------------------------------------------
+pass_sanitychecks_or_quit()
+# ---------------------------------------------------------------------------
+{
+    if ! which $snmpwalk >& /dev/null; then
+        echo "Unknown: Binary file, '$snmpwalk', not found in path. Aborting."
+        exit $UNKN
+    fi
+
+    [[ -z $IP ]] && {
+        echo "Unknown: IP address or hostname was not supplied. Aborting."
+        exit $UNKN
+    }
+}
+
+# ----------------------------------------------------------------------------
+usage()
+# ----------------------------------------------------------------------------
+{
+    echo
+    echo "`basename $ME` - Switch PSU checker."
+    echo
+    echo "Usage: `basename $ME` [-h] [-l] [-c SECRET] host|IP"
+    echo
+    echo " -h         :  Display this help text."
+    echo " -v         :  Display the version of this script."
+    echo " -l         :  List all available ports and their status."
+    echo " -c SECRET  :  Community string."
+    echo
+    echo "Check that 2 power supplies are working."
+    echo
+    echo "Examples"
+    echo
+    echo "List device hardware info:"
+    echo "    `basename $ME` -l -c secret 1.2.3.4"
+    echo
+    echo "Check number of PSUs on device:"
+    echo "    `basename $ME` -c secret 1.2.3.4"
+    echo
+}
+
+# ---------------------------------------------------------------------------
+array_search()
+# ---------------------------------------------------------------------------
+# $1 - array to search.
+# $2 - value to search for.
+# Returns 0(Success),1(Fail)
+# Outputs all the indexes that matched separated by spaces.
+{
+    local -i i arrsize
+
+    arrsize=`eval echo "\\${#$1[*]}"`
+
+    for i in `seq 0 $((arrsize-1))`;
+    do
+        val=`eval echo "\\${$1[i]}"`
+        [[ $val == $2 ]] && echo -n "$i "
+    done
+
+    return 0
+}
+
+# ---------------------------------------------------------------------------
+psu_alert_status()
+# ---------------------------------------------------------------------------
+# Outputs status text
+# Returns 0,1,2 or 3 (OK, WARN, CRITICAL, Unknown).
+# 0 - 2 psu
+# 1 - 1 psu
+# 2 - no psu (not possible)
+# 3 - program error
+{
+    local retval=$OK psus i x=0 name
+
+    # Find powerSupply(6)
+    psus=`array_search entPhysicalClass 6`
+
+    for i in $psus; do
+        name="${entPhysicalDescr[i]}"
+        : $((++x))
+    done
+
+    if [[ $x -eq 2 ]]; then
+        echo "PSUs are working (2 x $name)."
+        retval=$OK
+    elif [[ $x -eq 1 ]]; then
+        echo "Only one PSU is working."
+        retval=$WARN
+    elif [[ $x -eq 0 ]]; then
+        echo "SNMP (impossibly) reports both PSUs are down."
+        retval=$CRIT
+    elif [[ $x -gt 2 ]]; then
+        echo "More than two PSUs detected."
+        retval=$UNKN
+    else
+        echo "Plugin error."
+        retval=$UNKN
+    fi
+
+    return $retval
+}
+
+
+# ---------------------------------------------------------------------------
+get_snmp_tree()
+# ---------------------------------------------------------------------------
+# $1 - Name of an array to store the tree in.
+# $2 - The numerical oid
+{
+    local array_name=$1 oid=$2
+
+    eval `x=0 ; \
+    for i in $array_name; do \
+        $snmpwalk -v 2c -One -c $COMMUNITY $IP $oid \
+        | tr -d \" \
+        | while read a b c d; do \
+            echo "$i[$x]=\"$d\""; \
+            echo "${i}_id[$x]=\"${a##*.}\""; \
+            : $((++x)); \
+        done \
+    done 2>/dev/null`
+}
+
+# ---------------------------------------------------------------------------
+fill_arrays()
+# ---------------------------------------------------------------------------
+{
+    local i donebefore=0 tnum=0
+
+    get_snmp_tree "entPhysicalDescr" "$entPhysicalDescr_oid"
+
+    gnumrecords=${#entPhysicalDescr[*]}
+
+    [[ $gnumrecords -lt 2 ]] && {
+        echo "Unknown: No records. Check the community string. Aborting."
+        exit $UNKN
+    }
+
+    get_snmp_tree "entPhysicalContainedIn" "$entPhysicalContainedIn_oid"
+
+    tnum=${#entPhysicalContainedIn[*]}
+
+    [[ $tnum -lt 2 ]] && {
+        echo "Unknown: No records. Check the community string. Aborting."
+        exit $UNKN
+    }
+
+    get_snmp_tree "entPhysicalClass" "$entPhysicalClass_oid"
+
+    tnum=${#entPhysicalClass[*]}
+
+    [[ $tnum -lt 2 ]] && {
+        echo "Unknown: No records. Check the community string. Aborting."
+        exit $UNKN
+    }
+}
+
+# ----------------------------------------------------------------------------
+parse_options()
+# ----------------------------------------------------------------------------
+# Purpose:      Parse program options and set globals.
+# Arguments:    None
+# Returns:      Nothing
+{
+    set -- $CMDLINE
+    while true
+    do
+        case $1 in
+            -h|--help) usage; exit 0
+            ;;
+            -c) COMMUNITY="$2"; shift
+            ;;
+            -l) LIST=1
+            ;;
+            -v|--version) echo "$VERSION"; exit 0
+            ;;
+            ?*) IP="$1"
+            ;;
+        esac
+        shift 1 || break
+    done
+}
+
+main "$@"
+
+exit 0
+

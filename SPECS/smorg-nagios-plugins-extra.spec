@@ -79,6 +79,16 @@ install -m 755 jmxquery.jar ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/jmxquery.ja
 install -m 755 show_users.sh ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/show_users.sh
 install -m 755 sqljdbc.jar ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/sqljdbc.jar
 install -m 755 url.properties ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/url.properties
+# SNMP
+install -m 755 check_cisco_nexus_cpu.pl ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_cisco_nexus_cpu.pl
+install -m 755 check_cisco_nexus_hardware.pl ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_cisco_nexus_hardware.pl
+install -m 755 check_cisco_snmp.pl ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_cisco_snmp.pl
+install -m 755 check_iftraffic ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_iftraffic
+install -m 755 check_snmp_load ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_snmp_load
+install -m 755 check_snmp_netint.pl ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_snmp_netint.pl
+install -m 755 check_switch_ifs_zeroconf ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_switch_ifs_zeroconf
+install -m 755 check_switch_psu ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_switch_psu
+
 
 %files
 %defattr(4755,root,root,755)
@@ -128,12 +138,22 @@ install -m 755 url.properties ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/url.prope
 %_libdir/nagios/plugins/show_users.sh
 %_libdir/nagios/plugins/sqljdbc.jar
 %_libdir/nagios/plugins/url.properties
+%_libdir/nagios/plugins/check_cisco_nexus_cpu.pl
+%_libdir/nagios/plugins/check_cisco_nexus_hardware.pl
+%_libdir/nagios/plugins/check_cisco_snmp.pl
+%_libdir/nagios/plugins/check_iftraffic
+%_libdir/nagios/plugins/check_snmp_load
+%_libdir/nagios/plugins/check_snmp_netint.pl
+%_libdir/nagios/plugins/check_switch_ifs_zeroconf
+%_libdir/nagios/plugins/check_switch_psu
 %dir %_libdir
 
 %clean
 %{__rm} -rf %{buildroot}
 
 %changelog
+* Tue Dec 27 2012 Mark Clarkson <mark.clarkson@smorg.co.uk>
+- Added 8 snmp checks.
 * Tue Dec 19 2012 Mark Clarkson <mark.clarkson@smorg.co.uk>
 - Added check_iftraffic_nrpe.pl and check_iftraffic_nrpe.py checks.
   New dependency, python-argparse needed but NOT added.
