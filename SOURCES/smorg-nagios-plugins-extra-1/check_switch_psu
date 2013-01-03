@@ -251,6 +251,7 @@ check_psus_have_good_status()
         [[ ! ( ${cefcFRUPowerOperStatus_id[i]} -eq $1 || \
                ${cefcFRUPowerOperStatus_id[i]} -eq $2 ) ]] && continue
         echo -n " PSU-$x:(${PowerOperType[${cefcFRUPowerOperStatus[i]}]})"
+        [[ ${cefcFRUPowerOperStatus[i]} -ne 1 ]] && retval=$WARN
         : $((++x))
     done
 
@@ -281,17 +282,17 @@ psu_alert_status()
     done
 
     if [[ $x -eq 2 ]]; then
-        echo -n "PSUs are working (2 x $name). "
+        echo -n "PSUs are present (2 x $name). "
         check_psus_have_good_status ${id[0]} ${id[1]}
         retval=$?
     elif [[ $x -eq 1 ]]; then
-        echo "Only one PSU is working."
+        echo "Only one PSU is present."
         retval=$WARN
     elif [[ $x -eq 0 ]]; then
-        echo "SNMP (impossibly) reports both PSUs are down."
+        echo "SNMP (impossibly) reports both PSUs are absent."
         retval=$CRIT
     elif [[ $x -gt 2 ]]; then
-        echo "More than two PSUs detected."
+        echo "More than two PSUs detected. Confused. Aborting."
         retval=$UNKN
     else
         echo "Plugin error."
