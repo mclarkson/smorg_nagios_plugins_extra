@@ -8,6 +8,8 @@
 # File:     check_switch_psu
 # Date:     21 Dec 2012
 # Version:  0.10
+# Changes:  0.11 4-Jan-2012 Mark Clarkson <mark.clarkson@smorg.co.uk>
+#               New option, '-n', to specify number of PSUs to check for.
 #
 # Purpose:  Check that both psu units are present. A removed psu will not
 #           be detected by other hardware check scripts since there is no
@@ -22,8 +24,11 @@
 # ---------------------------------------------------------------------------
 
 # Use snmpbulkwalk if it's available - it's more efficient
-snmpwalk=snmpbulkwalk
-#snmpwalk=snmpwalk
+SNMPWALK=snmpbulkwalk
+#SNMPWALK=snmpwalk
+
+# The default number of power supplies to check for.
+NUMPSU=2
 
 # ---------------------------------------------------------------------------
 # DON'T TOUCH ANYTHING BELOW
@@ -172,8 +177,8 @@ main()
 pass_sanitychecks_or_quit()
 # ---------------------------------------------------------------------------
 {
-    if ! which $snmpwalk >& /dev/null; then
-        echo "Unknown: Binary file, '$snmpwalk', not found in path. Aborting."
+    if ! which $SNMPWALK >& /dev/null; then
+        echo "Unknown: Binary file, '$SNMPWALK', not found in path. Aborting."
         exit $UNKN
     fi
 
@@ -190,11 +195,12 @@ usage()
     echo
     echo "`basename $ME` - Switch PSU checker."
     echo
-    echo "Usage: `basename $ME` [-h] [-l] [-c SECRET] host|IP"
+    echo "Usage: `basename $ME` [-h] [-l] [-n <NUM>] [-c SECRET] <host|IP>"
     echo
     echo " -h         :  Display this help text."
     echo " -v         :  Display the version of this script."
     echo " -l         :  List hardware."
+    echo " -n <NUM>   :  Number of PSUs to check for (default is 2)."
     echo " -c SECRET  :  Community string."
     echo
     echo "Check that 2 power supplies are working."
@@ -234,24 +240,26 @@ array_search()
 check_psus_have_good_status()
 # ---------------------------------------------------------------------------
 # The PSUs are present. Check that they have an ok status.
-# $1 - ID of the first PSU
-# $2 - ID of the second PSU
+# $1 - Space separated list of PSU IDs
 # Returns 0,1,2 or 3 (OK, WARN, CRITICAL, Unknown).
 # 0 - 2 psu
 # 1 - 1 psu
 # 2 - no psu (not possible)
 # 3 - program error
 {
-    local retval=$OK x=1
+    local retval=$OK x=1 i j cont
 
     echo -n "Status"
 
     for i in `seq 0 $((${#cefcFRUPowerOperStatus_id[*]}-1))`
     do
-        [[ ! ( ${cefcFRUPowerOperStatus_id[i]} -eq $1 || \
-               ${cefcFRUPowerOperStatus_id[i]} -eq $2 ) ]] && continue
+        cont=1
+        for j in $1; do
+            [[ ${cefcFRUPowerOperStatus_id[i]} -eq $j ]] && cont=0
+        done
+        [[ $cont -eq 1 ]] && continue
         echo -n " PSU-$x:(${PowerOperType[${cefcFRUPowerOperStatus[i]}]})"
-        [[ ${cefcFRUPowerOperStatus[i]} -ne 1 ]] && retval=$WARN
+        [[ ${cefcFRUPowerOperStatus[i]} -ne 2 ]] && retval=$WARN
         : $((++x))
     done
 
@@ -270,7 +278,7 @@ psu_alert_status()
 # 2 - no psu (not possible)
 # 3 - program error
 {
-    local retval=$OK psus i x=0 name
+    local retval=$OK psus i= j= x=0 name psulist= spc=
 
     # Find powerSupply(6)
     psus=`array_search entPhysicalClass 6`
@@ -281,18 +289,25 @@ psu_alert_status()
         : $((++x))
     done
 
-    if [[ $x -eq 2 ]]; then
-        echo -n "PSUs are present (2 x $name). "
-        check_psus_have_good_status ${id[0]} ${id[1]}
+    if [[ $x -eq $NUMPSU ]]; then
+        echo -n "All PSUs are present ($name). "
+        for j in `seq 0 $(($NUMPSU-1))`; do
+            psulist="$psulist$spc${id[j]}"
+            spc=" "
+        done
+        check_psus_have_good_status "$psulist"
         retval=$?
     elif [[ $x -eq 1 ]]; then
         echo "Only one PSU is present."
         retval=$WARN
+    elif [[ $x -gt 1 && $x -lt $NUMPSU ]]; then
+        echo "Only $x PSUs are present (should be $NUMPSU)."
+        retval=$WARN
     elif [[ $x -eq 0 ]]; then
-        echo "SNMP (impossibly) reports both PSUs are absent."
+        echo "SNMP (impossibly) reports all PSUs are absent!"
         retval=$CRIT
-    elif [[ $x -gt 2 ]]; then
-        echo "More than two PSUs detected. Confused. Aborting."
+    elif [[ $x -gt $NUMPSU ]]; then
+        echo "More than $NUMPSU PSUs detected. Confused. Aborting."
         retval=$UNKN
     else
         echo "Plugin error."
@@ -313,7 +328,7 @@ get_snmp_tree()
 
     eval `x=0 ; \
     for i in $array_name; do \
-        $snmpwalk -v 2c -One -c $COMMUNITY $IP $oid \
+        $SNMPWALK -v 2c -One -c $COMMUNITY $IP $oid \
         | tr -d \" \
         | while read a b c d; do \
             echo "$i[$x]=\"$d\""; \
@@ -380,6 +395,8 @@ parse_options()
             -h|--help) usage; exit 0
             ;;
             -c) COMMUNITY="$2"; shift
+            ;;
+            -n) NUMPSU="$2"; shift
             ;;
             -l) LIST=1
             ;;
