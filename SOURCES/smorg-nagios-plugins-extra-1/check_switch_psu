@@ -71,7 +71,7 @@ cefcFRUPowerOperStatus_oid=.1.3.6.1.4.1.9.9.117.1.1.2.1.2
 
 # cefcFRUPowerOperStatus,PowerOperType:
 declare -a PowerOperType=(
-			"dummy"               # <- not used, dummy for index 0
+                        "dummy"               # <- not used, dummy for index 0
                         "offEnvOther"
                         "on"
                         "offAdmin"
@@ -203,7 +203,7 @@ usage()
     echo " -n <NUM>   :  Number of PSUs to check for (default is 2)."
     echo " -c SECRET  :  Community string."
     echo
-    echo "Check that 2 power supplies are working."
+    echo "Check that NUM power supplies are working."
     echo
     echo "Examples"
     echo
@@ -242,9 +242,9 @@ check_psus_have_good_status()
 # The PSUs are present. Check that they have an ok status.
 # $1 - Space separated list of PSU IDs
 # Returns 0,1,2 or 3 (OK, WARN, CRITICAL, Unknown).
-# 0 - 2 psu
-# 1 - 1 psu
-# 2 - no psu (not possible)
+# 0 - $NUMPSU psus
+# 1 - not $NUMPSU psus
+# 2 - no psus (not possible)
 # 3 - program error
 {
     local retval=$OK x=1 i j cont
