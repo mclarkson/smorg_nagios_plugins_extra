@@ -73,6 +73,7 @@ install -m 755 check_sqljob.sh ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_sq
 install -m 755 check_ssl_cert ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_ssl_cert
 install -m 755 check_statusdat_latency ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_statusdat_latency
 install -m 755 check_uptime.pl ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_uptime.pl
+install -m 755 check_uptime3 ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_uptime3
 install -m 755 get_stats_memcache ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/get_stats_memcache
 install -m 755 jmxquery.jar ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/jmxquery.jar
 install -m 755 jmxquery.jar ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/jmxquery.jar
@@ -132,6 +133,7 @@ install -m 755 check_switch_psu ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_s
 %_libdir/nagios/plugins/check_ssl_cert
 %_libdir/nagios/plugins/check_statusdat_latency
 %_libdir/nagios/plugins/check_uptime.pl
+%_libdir/nagios/plugins/check_uptime3
 %_libdir/nagios/plugins/get_stats_memcache
 %_libdir/nagios/plugins/jmxquery.jar
 %_libdir/nagios/plugins/jmxquery.jar
@@ -152,6 +154,8 @@ install -m 755 check_switch_psu ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_s
 %{__rm} -rf %{buildroot}
 
 %changelog
+* Wed Jan 9 2013 Mark Clarkson <mark.clarkson@smorg.co.uk>
+- Added check_uptime3.
 * Tue Dec 27 2012 Mark Clarkson <mark.clarkson@smorg.co.uk>
 - Added 8 snmp checks.
 * Tue Dec 19 2012 Mark Clarkson <mark.clarkson@smorg.co.uk>
