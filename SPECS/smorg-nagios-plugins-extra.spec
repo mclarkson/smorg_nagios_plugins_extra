@@ -88,6 +88,7 @@ install -m 755 check_iftraffic ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_if
 install -m 755 check_snmp_load ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_snmp_load
 install -m 755 check_snmp_netint.pl ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_snmp_netint.pl
 install -m 755 check_switch_ifs_zeroconf ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_switch_ifs_zeroconf
+install -m 755 check_switch_module ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_switch_module
 install -m 755 check_switch_psu ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_switch_psu
 
 
@@ -147,6 +148,7 @@ install -m 755 check_switch_psu ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_s
 %_libdir/nagios/plugins/check_snmp_load
 %_libdir/nagios/plugins/check_snmp_netint.pl
 %_libdir/nagios/plugins/check_switch_ifs_zeroconf
+%_libdir/nagios/plugins/check_switch_module
 %_libdir/nagios/plugins/check_switch_psu
 %dir %_libdir
 
@@ -154,6 +156,8 @@ install -m 755 check_switch_psu ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_s
 %{__rm} -rf %{buildroot}
 
 %changelog
+* Wed Jan 9 2013 Mark Clarkson <mark.clarkson@smorg.co.uk>
+- Added check_switch_module.
 * Wed Jan 9 2013 Mark Clarkson <mark.clarkson@smorg.co.uk>
 - Added check_uptime3.
 * Tue Dec 27 2012 Mark Clarkson <mark.clarkson@smorg.co.uk>
