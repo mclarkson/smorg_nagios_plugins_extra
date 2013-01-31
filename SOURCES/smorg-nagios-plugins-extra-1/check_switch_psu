@@ -198,7 +198,7 @@ usage()
     echo
     echo "`basename $ME` - Switch PSU checker."
     echo
-    echo "Usage: `basename $ME` [-h] [-l] [-n <NUM>] [-c SECRET] <host|IP>"
+    echo "Usage: `basename $ME` [-h] [-l] [-n <NUM>] [-C SECRET] <host|IP>"
     echo
     echo " -h         :  Display this help text."
     echo " -v         :  Display the version of this script."
@@ -211,10 +211,10 @@ usage()
     echo "Examples"
     echo
     echo "List device hardware info:"
-    echo "    `basename $ME` -l -c secret 1.2.3.4"
+    echo "    `basename $ME` -l -C secret 1.2.3.4"
     echo
     echo "Check number of PSUs on device:"
-    echo "    `basename $ME` -c secret 1.2.3.4"
+    echo "    `basename $ME` -C secret 1.2.3.4"
     echo
 }
 

@@ -170,7 +170,7 @@ usage()
     echo " -h         :  Display this help text."
     echo " -v         :  Display the version of this script."
     echo " -l         :  List all available ports and their status."
-    echo " -c SECRET  :  Community string."
+    echo " -C SECRET  :  Community string."
     echo " -f REGEX   :  Inclusive regular expression (these)."
     echo " -F REGEX   :  Exclusive regular expression (but not these)."
     echo
@@ -181,19 +181,19 @@ usage()
     echo "Examples"
     echo
     echo "List all interfaces on the device:"
-    echo "    `basename $ME` -l -c secret 1.2.3.4"
+    echo "    `basename $ME` -l -C secret 1.2.3.4"
     echo
     echo "List only Ethernet1/1/1 interfaces on the device:"
-    echo "    `basename $ME` -l -f Ethernet1/1/1$ -c secret 1.2.3.4"
+    echo "    `basename $ME` -l -f Ethernet1/1/1$ -C secret 1.2.3.4"
     echo
     echo "List only Ethernet interfaces on the device:"
-    echo "    `basename $ME` -l -f Ethernet -c secret 1.2.3.4"
+    echo "    `basename $ME` -l -f Ethernet -C secret 1.2.3.4"
     echo
     echo "Check all interface on the device:"
-    echo "    `basename $ME` -c secret 1.2.3.4"
+    echo "    `basename $ME` -C secret 1.2.3.4"
     echo
     echo "Check all interfaces on the device except vlan and port channels:"
-    echo "    `basename $ME` -c secret -F 'vlan|port' 1.2.3.4"
+    echo "    `basename $ME` -C secret -F 'vlan|port' 1.2.3.4"
     echo
     echo "NOTE: Do not use this plugin to check individual interfaces."
     echo "      It is for bulk checks only - individual checks will be slow"
@@ -315,7 +315,7 @@ parse_options()
             ;;
             -F) EXCFILT="$2"; shift
             ;;
-            -c) COMMUNITY="$2"; shift
+            -[cC]) COMMUNITY="$2"; shift
             ;;
             -l) LIST=1
             ;;
