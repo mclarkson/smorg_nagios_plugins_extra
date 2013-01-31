@@ -12,6 +12,8 @@
 #                  Added support for snmpbulkwalk as it's more efficient.
 #           0.12 - 7-Jan-13 by Mark Clarkson <mark.clarkson@smorg.co.uk>
 #                  Show the interface description field.
+#           0.13 - 31-Jan-13 by Mark Clarkson <mark.clarkson@smorg.co.uk>
+#                  Corrected the up/down count.
 #
 # Purpose:  Check that ifAdminStatus matches ifOperStatus. I.e. Check
 #           that the interface is in the state the network admin requested.
@@ -38,7 +40,7 @@ ME="$0"
 CMDLINE="$@"
 TRUE=1
 FALSE=0
-VERSION="0.12"
+VERSION="0.13"
 OK=0
 WARN=1
 CRIT=2
@@ -56,6 +58,7 @@ declare -a ifAdminStatus
 declare -a ifOperStatus
 declare -a show
 declare -a alert
+declare -a up
 
 # Status values for ifAdminStatus and ifOperStatus
 declare -a Status=(
@@ -91,7 +94,7 @@ main()
 # ---------------------------------------------------------------------------
 # Execution begins and ends here.
 {
-    local -i numinterfaces candwidth col1width retval
+    local -i numinterfaces=0 numdownints=0 candwidth col1width retval
     local i t comma
 
     retval=$OK
@@ -125,7 +128,11 @@ main()
     t="CRITICAL: IFs down: " ; comma=
     for i in `seq 0 $(($gnumrecords-1))`; do
         [[ ${show[i]} -eq 0 ]] && continue
-        : $((numinterfaces++))
+        if [[ ${up[i]} -eq 1 ]]; then
+            : $((numinterfaces++))
+        else
+            : $((numdownints++))
+        fi
         [[ ${alert[i]} -gt 0 ]] && {
             t="$t$comma ${ifDescr[i]} (${ifAlias[i]})"
             [[ ${alert[i]} -gt $retval ]] && retval=${alert[i]}
@@ -134,7 +141,8 @@ main()
     done
 
     if [[ $retval -eq $OK ]]; then
-        echo "OK: All $numinterfaces interfaces are up."
+        echo -n "OK: $numinterfaces interfaces are UP. $numdownints are "
+        echo "administratively disabled."
     else
         echo "$t"
     fi
@@ -205,8 +213,8 @@ usage()
 # ---------------------------------------------------------------------------
 alert_logic()
 # ---------------------------------------------------------------------------
-# UP   UP    = OK
-# UP   DOWN  = CRITICAL
+# UP(1) UP   = OK
+# UP DOWN(2) = CRITICAL
 # DOWN UP    = WARNING
 # DOWN DOWN  = OK
 #
@@ -295,6 +303,8 @@ fill_arrays()
     for i in `seq 0 $((gnumrecords-1))`; do
         alert_logic "${ifAdminStatus[i]}" "${ifOperStatus[i]}"
         alert[i]=$?
+        up[i]=0
+        [[ "${ifAdminStatus[i]}" -eq 1 ]] && up[i]=1
     done
 }
 
