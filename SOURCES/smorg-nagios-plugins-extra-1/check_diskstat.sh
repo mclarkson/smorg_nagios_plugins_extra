@@ -1,4 +1,10 @@
 #!/bin/bash
+# Changes: 25-Feb-2013 Mark Clarkson <mark.clarkson@smorg.co.uk>
+#          Added extra stats to graph creation:
+#          avgrq-sz - average request size (in sectors),
+#          avgqu-sz - average queue size, and
+#          await    - The average time (in milliseconds) for I/O requests
+#                     issued to the device to be served.
 
 DISK=
 WARNING=
@@ -28,6 +34,8 @@ while [ ! -z "$1" ]; do
 		-d)	shift; DISK=$1 ;;
 		-w)	shift; WARNING=$1 ;;
 		-c)	shift; CRITICAL=$1 ;;
+		-W)	shift; WARN_QSZ=$1 ;;
+		-C)	shift; CRIT_QSZ=$1 ;;
 		-h)	show_help; exit 1 ;;
 	esac
 	shift
@@ -44,27 +52,32 @@ sanitize() {
 		exit $E_UNKNOWN
 	fi
 
-	# check thresholds
-	if [ -z "$WARNING" ]; then
-		echo "Need warning threshold"
-		exit $E_UNKNOWN
-	fi
-	if [ -z "$CRITICAL" ]; then
-		echo "Need critical threshold"
-		exit $E_UNKNOWN
-	fi
+    if [ -z $WARN_QSZ ]; then
+        # check thresholds
+        if [ -z "$WARNING" ]; then
+            echo "Need warning threshold"
+            exit $E_UNKNOWN
+        fi
+        if [ -z "$CRITICAL" ]; then
+            echo "Need critical threshold"
+            exit $E_UNKNOWN
+        fi
 	
-	# 
-	if [ -z "$WARN_TPS" -o -z "$WARN_READ" -o -z "$WARN_WRITE" ]; then
-		echo "Need 3 values for warning threshold (tps,read,write)"
-		exit $E_UNKNOWN
-	fi
-	if [ -z "$CRIT_TPS" -o -z "$CRIT_READ" -o -z "$CRIT_WRITE" ]; then
-		echo "Need 3 values for critical threshold (tps,read,write)"
-		exit $E_UNKNOWN
-	fi
+        if [ -z "$WARN_TPS" -o -z "$WARN_READ" -o -z "$WARN_WRITE" ]; then
+            echo "Need 3 values for warning threshold (tps,read,write)"
+            exit $E_UNKNOWN
+        fi
+        if [ -z "$CRIT_TPS" -o -z "$CRIT_READ" -o -z "$CRIT_WRITE" ]; then
+            echo "Need 3 values for critical threshold (tps,read,write)"
+            exit $E_UNKNOWN
+        fi
+    else
+        if [ -z "$CRIT_QSZ" ]; then
+            echo "Need '-C' option."
+            exit $E_UNKNOWN
+        fi
+    fi
 		
-
 }
 
 readdiskstat() {
@@ -80,13 +93,15 @@ readhistdiskstat() {
 }
 
 # process thresholds
-WARN_TPS=$(echo $WARNING | cut -d , -f 1)
-WARN_READ=$(echo $WARNING | cut -d , -f 2)
-WARN_WRITE=$(echo $WARNING | cut -d , -f 3)
-CRIT_TPS=$(echo $CRITICAL | cut -d , -f 1)
-CRIT_READ=$(echo $CRITICAL | cut -d , -f 2)
-CRIT_WRITE=$(echo $CRITICAL | cut -d , -f 3)
-# check args
+if [ -z $WARN_QSZ ]; then
+    WARN_TPS=$(echo $WARNING | cut -d , -f 1)
+    WARN_READ=$(echo $WARNING | cut -d , -f 2)
+    WARN_WRITE=$(echo $WARNING | cut -d , -f 3)
+    CRIT_TPS=$(echo $CRITICAL | cut -d , -f 1)
+    CRIT_READ=$(echo $CRITICAL | cut -d , -f 2)
+    CRIT_WRITE=$(echo $CRITICAL | cut -d , -f 3)
+    # check args
+fi
 sanitize
 
 
@@ -138,41 +153,96 @@ let "TPS=($NEW_READ - $OLD_READ + $NEW_WRITE - $OLD_WRITE) / $TIME"
 let "KBYTES_READ_PER_SEC = $BYTES_READ_PER_SEC / 1024"
 let "KBYTES_WRITTEN_PER_SEC = $BYTES_WRITTEN_PER_SEC / 1024"
 
+# From iostat source
+#
+#    xds->await = (sdc->nr_ios - sdp->nr_ios) ?
+#        ((sdc->rd_ticks - sdp->rd_ticks) + (sdc->wr_ticks - sdp->wr_ticks)) /
+#        ((double) (sdc->nr_ios - sdp->nr_ios)) : 0.0;
+#    xds->arqsz = (sdc->nr_ios - sdp->nr_ios) ?
+#        ((sdc->rd_sect - sdp->rd_sect) + (sdc->wr_sect - sdp->wr_sect)) /
+#        ((double) (sdc->nr_ios - sdp->nr_ios)) : 0.0;
+#
+# iostat 'avgrq-sz' = arqsz
+#        'avgqu-sz' = 
+
+#OLD_INFLIGHT=$(echo $OLDDISKSTAT | awk '{print $9}')
+#NEW_INFLIGHT=$(echo $NEWDISKSTAT | awk '{print $9}')
+#let "INFLIGHT = $NEW_INFLIGHT - $OLD_INFLIGHT" #requests
+#OLD_IOTICKS=$(echo $OLDDISKSTAT | awk '{print $10}')
+#NEW_IOTICKS=$(echo $NEWDISKSTAT | awk '{print $10}')
+#let "IOTICKS = $NEW_IOTICKS - $OLD_IOTICKS" #ms
+
+OLD_WAITTIME_READ=$(echo $OLDDISKSTAT | awk '{print $4}')
+NEW_WAITTIME_READ=$(echo $NEWDISKSTAT | awk '{print $4}')
+let "READ_TICKS = $NEW_WAITTIME_READ - $OLD_WAITTIME_READ" #ms
+OLD_WAITTIME_WRITE=$(echo $OLDDISKSTAT | awk '{print $8}')
+NEW_WAITTIME_WRITE=$(echo $NEWDISKSTAT | awk '{print $8}')
+let "WRITE_TICKS = $NEW_WAITTIME_WRITE - $OLD_WAITTIME_WRITE" #ms
+let "NR_IOS = $NEW_READ - $OLD_READ + $NEW_WRITE - $OLD_WRITE"
+OLD_TIMEINQ=$(echo $OLDDISKSTAT | awk '{print $11}')
+NEW_TIMEINQ=$(echo $NEWDISKSTAT | awk '{print $11}')
+let "TIMEINQ = $NEW_TIMEINQ - $OLD_TIMEINQ" #ms
+
+: $((++$NR_IOS)) ; : $((--$NR_IOS))
+
+if [[ $NR_IOS -ne 0 ]]; then 
+    let "AWAIT = ( $READ_TICKS + $WRITE_TICKS ) / $NR_IOS"
+    let "ARQSZ = ( $SECTORS_READ + $SECTORS_WRITE ) / $NR_IOS"
+    let "AQUSZ = ( $TIMEINQ / $TIME ) / 1000"
+else
+    AWAIT=0
+    AWQSZ=0
+    AQUSZ=0
+fi
+
 OUTPUT=""
 EXITCODE=$E_OK
-# check TPS
-if [ $TPS -gt $WARN_TPS ]; then
-	if [ $TPS -gt $CRIT_TPS ]; then
-		OUTPUT="critical IO/s (>$CRIT_TPS), "
-		EXITCODE=$E_CRITICAL
-	else
-		OUTPUT="warning IO/s (>$WARN_TPS), "
-		EXITCODE=$E_WARNING
-	fi
-fi
-# check read
-if [ $BYTES_READ_PER_SEC -gt $WARN_READ ]; then
-	if [ $BYTES_READ_PER_SEC -gt $CRIT_READ ]; then
-		OUTPUT="${OUTPUT}critical read sectors/s (>$CRIT_READ), "
-		EXITCODE=$E_CRITICAL
-	else
-		OUTPUT="${OUTPUT}warning read sectors/s (>$WARN_READ), "
-		[ "$EXITCODE" -lt $E_CRITICAL ] && EXITCODE=$E_WARNING
-	fi
+if [ -z $WARN_QSZ ]; then
+    # check TPS
+    if [ $TPS -gt $WARN_TPS ]; then
+        if [ $TPS -gt $CRIT_TPS ]; then
+            OUTPUT="critical IO/s (>$CRIT_TPS), "
+            EXITCODE=$E_CRITICAL
+        else
+            OUTPUT="warning IO/s (>$WARN_TPS), "
+            EXITCODE=$E_WARNING
+        fi
+    fi
+    # check read
+    if [ $BYTES_READ_PER_SEC -gt $WARN_READ ]; then
+        if [ $BYTES_READ_PER_SEC -gt $CRIT_READ ]; then
+            OUTPUT="${OUTPUT}critical read sectors/s (>$CRIT_READ), "
+            EXITCODE=$E_CRITICAL
+        else
+            OUTPUT="${OUTPUT}warning read sectors/s (>$WARN_READ), "
+            [ "$EXITCODE" -lt $E_CRITICAL ] && EXITCODE=$E_WARNING
+        fi
+    fi
+
+    # check write
+    if [ $BYTES_WRITTEN_PER_SEC -gt $WARN_WRITE ]; then
+        if [ $BYTES_WRITTEN_PER_SEC -gt $CRIT_WRITE ]; then
+            OUTPUT="${OUTPUT}critical write sectors/s (>$CRIT_WRITE), "
+            EXITCODE=$E_CRITICAL
+        else
+            OUTPUT="${OUTPUT}warning write sectors/s (>$WARN_WRITE), " 
+            [ "$EXITCODE" -lt $E_CRITICAL ] && EXITCODE=$E_WARNING
+        fi
+    fi
+else
+    # check WARN_QSZ
+    if [ $AQUSZ -gt $WARN_QSZ ]; then
+        if [ $TPS -gt $CRIT_QSZ ]; then
+            OUTPUT="critical queue size (>$CRIT_QSZ), "
+            EXITCODE=$E_CRITICAL
+        else
+            OUTPUT="warning queue size (>$WARN_QSZ), "
+            EXITCODE=$E_WARNING
+        fi
+    fi
 fi
 
-# check write
-if [ $BYTES_WRITTEN_PER_SEC -gt $WARN_WRITE ]; then
-	if [ $BYTES_WRITTEN_PER_SEC -gt $CRIT_WRITE ]; then
-		OUTPUT="${OUTPUT}critical write sectors/s (>$CRIT_WRITE), "
-		EXITCODE=$E_CRITICAL
-	else
-		OUTPUT="${OUTPUT}warning write sectors/s (>$WARN_WRITE), " 
-		[ "$EXITCODE" -lt $E_CRITICAL ] && EXITCODE=$E_WARNING
-	fi
-fi
 
-
-echo "${OUTPUT}summary: $TPS io/s, read $SECTORS_READ sectors (${KBYTES_READ_PER_SEC}kB/s), write $SECTORS_WRITE sectors (${KBYTES_WRITTEN_PER_SEC}kB/s) in $TIME seconds | tps=${TPS}io/s;;; read=${BYTES_READ_PER_SEC}b/s;;; write=${BYTES_WRITTEN_PER_SEC}b/s;;; "
+echo "${OUTPUT}summary: $TPS io/s, read $SECTORS_READ sectors (${KBYTES_READ_PER_SEC}kB/s), write $SECTORS_WRITE sectors (${KBYTES_WRITTEN_PER_SEC}kB/s) in $TIME seconds | tps=${TPS}io/s;;; read=${BYTES_READ_PER_SEC}b/s;;; write=${BYTES_WRITTEN_PER_SEC}b/s;;; avgrq-sz=${ARQSZ};;; avgqu-sz=${AQUSZ};$WARN_QSZ;$CRIT_QSZ; await=${AWAIT}ms;;;"
 exit $EXITCODE
 
