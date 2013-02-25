@@ -15,6 +15,7 @@ E_WARNING=1
 E_CRITICAL=2
 E_UNKNOWN=3
 
+BRIEF=0
 
 show_help() {
 	echo "$0 -d DEVICE -w tps,read,write -c tps,read,write | -h"
@@ -24,13 +25,17 @@ show_help() {
 	echo "  -d DEVICE            DEVICE must be without /dev (ex: -d sda)"
 	echo "  -w/c TPS,READ,WRITE  TPS means transfer per seconds (aka IO/s)"
 	echo "                       READ and WRITE are in sectors per seconds"
+    echo "  -W/C NUM             Average queue length thresholds."
+    echo "  -b                   Brief output."
 	echo
 	echo " example: $0 -d sda -w 200,100000,100000 -c 300,200000,200000"
+	echo " example: $0 -d sda -W 50 -C 100"
 }
 
 # process args
 while [ ! -z "$1" ]; do 
 	case $1 in
+		-b)	BRIEF=1 ;;
 		-d)	shift; DISK=$1 ;;
 		-w)	shift; WARNING=$1 ;;
 		-c)	shift; CRITICAL=$1 ;;
@@ -163,7 +168,6 @@ let "KBYTES_WRITTEN_PER_SEC = $BYTES_WRITTEN_PER_SEC / 1024"
 #        ((double) (sdc->nr_ios - sdp->nr_ios)) : 0.0;
 #
 # iostat 'avgrq-sz' = arqsz
-#        'avgqu-sz' = 
 
 #OLD_INFLIGHT=$(echo $OLDDISKSTAT | awk '{print $9}')
 #NEW_INFLIGHT=$(echo $NEWDISKSTAT | awk '{print $9}')
@@ -185,14 +189,14 @@ let "TIMEINQ = $NEW_TIMEINQ - $OLD_TIMEINQ" #ms
 
 : $((++$NR_IOS)) ; : $((--$NR_IOS))
 
+let "AQUSZ = ( $TIMEINQ / $TIME ) / 1000"
+
 if [[ $NR_IOS -ne 0 ]]; then 
     let "AWAIT = ( $READ_TICKS + $WRITE_TICKS ) / $NR_IOS"
     let "ARQSZ = ( $SECTORS_READ + $SECTORS_WRITE ) / $NR_IOS"
-    let "AQUSZ = ( $TIMEINQ / $TIME ) / 1000"
 else
     AWAIT=0
     AWQSZ=0
-    AQUSZ=0
 fi
 
 OUTPUT=""
@@ -232,7 +236,7 @@ if [ -z $WARN_QSZ ]; then
 else
     # check WARN_QSZ
     if [ $AQUSZ -gt $WARN_QSZ ]; then
-        if [ $TPS -gt $CRIT_QSZ ]; then
+        if [ $AQUSZ -gt $CRIT_QSZ ]; then
             OUTPUT="critical queue size (>$CRIT_QSZ), "
             EXITCODE=$E_CRITICAL
         else
@@ -243,6 +247,10 @@ else
 fi
 
 
-echo "${OUTPUT}summary: $TPS io/s, read $SECTORS_READ sectors (${KBYTES_READ_PER_SEC}kB/s), write $SECTORS_WRITE sectors (${KBYTES_WRITTEN_PER_SEC}kB/s) in $TIME seconds | tps=${TPS}io/s;;; read=${BYTES_READ_PER_SEC}b/s;;; write=${BYTES_WRITTEN_PER_SEC}b/s;;; avgrq-sz=${ARQSZ};;; avgqu-sz=${AQUSZ};$WARN_QSZ;$CRIT_QSZ; await=${AWAIT}ms;;;"
-exit $EXITCODE
+if [[ $BRIEF -eq 0 ]]; then
+    echo "${OUTPUT}summary: $TPS io/s, read $SECTORS_READ sectors (${KBYTES_READ_PER_SEC}kB/s), write $SECTORS_WRITE sectors (${KBYTES_WRITTEN_PER_SEC}kB/s) in $TIME seconds | tps=${TPS}io/s;;; read=${BYTES_READ_PER_SEC}b/s;;; write=${BYTES_WRITTEN_PER_SEC}b/s;;; avgrq-sz=${ARQSZ};;; avgqu-sz=${AQUSZ};$WARN_QSZ;$CRIT_QSZ; await=${AWAIT}ms;;;"
+else
+    echo "$TPS io/s, read ${KBYTES_READ_PER_SEC}kB/s, write ${KBYTES_WRITTEN_PER_SEC}kB/s | tps=${TPS}io/s;;; read=${BYTES_READ_PER_SEC}b/s;;; write=${BYTES_WRITTEN_PER_SEC}b/s;;; avgrq-sz=${ARQSZ};;; avgqu-sz=${AQUSZ};$WARN_QSZ;$CRIT_QSZ; await=${AWAIT}ms;;;"
+fi
 
+exit $EXITCODE
