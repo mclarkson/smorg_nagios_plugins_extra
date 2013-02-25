@@ -196,7 +196,7 @@ if [[ $NR_IOS -ne 0 ]]; then
     let "ARQSZ = ( $SECTORS_READ + $SECTORS_WRITE ) / $NR_IOS"
 else
     AWAIT=0
-    AWQSZ=0
+    ARQSZ=0
 fi
 
 OUTPUT=""
