@@ -36,7 +36,7 @@ show_help() {
 while [ ! -z "$1" ]; do 
 	case $1 in
 		-b)	BRIEF=1 ;;
-		-d)	shift; DISK=$1 ;;
+		-d)	shift; DISK=${1////!} ;;
 		-w)	shift; WARNING=$1 ;;
 		-c)	shift; CRITICAL=$1 ;;
 		-W)	shift; WARN_QSZ=$1 ;;
@@ -47,7 +47,7 @@ while [ ! -z "$1" ]; do
 done
 
 # generate HISTFILE filename
-HISTFILE=/var/tmp/check_diskstat.$DISK
+HISTFILE=/var/tmp/check_diskstat_`id -nu`.$DISK
 
 # check input parameters so we can continu !
 sanitize() {
