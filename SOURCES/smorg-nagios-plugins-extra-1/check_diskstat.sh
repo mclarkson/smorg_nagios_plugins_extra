@@ -1,10 +1,17 @@
 #!/bin/bash
+# Original Author: Unknown
 # Changes: 25-Feb-2013 Mark Clarkson <mark.clarkson@smorg.co.uk>
+#          Added brief option to reduce size of output
+#          Added current user to cache file name. Allows other users
+#              to test the plugin now without breaking the check.
+#          Added '-W' and '-C' options to alert on avgqu-sz.
+#          Added ability to use '/' instead of '!'. It can be
+#              difficult to pass '!' through nagios to nrpe.
 #          Added extra stats to graph creation:
-#          avgrq-sz - average request size (in sectors),
-#          avgqu-sz - average queue size, and
-#          await    - The average time (in milliseconds) for I/O requests
-#                     issued to the device to be served.
+#           avgrq-sz - average request size (in sectors),
+#           avgqu-sz - average queue size, and
+#           await    - The average time (in milliseconds) for I/O requests
+#                      issued to the device to be served.
 
 DISK=
 WARNING=
@@ -248,9 +255,9 @@ fi
 
 
 if [[ $BRIEF -eq 0 ]]; then
-    echo "${OUTPUT}summary: $TPS io/s, read $SECTORS_READ sectors (${KBYTES_READ_PER_SEC}kB/s), write $SECTORS_WRITE sectors (${KBYTES_WRITTEN_PER_SEC}kB/s) in $TIME seconds | tps=${TPS}io/s;;; read=${BYTES_READ_PER_SEC}b/s;;; write=${BYTES_WRITTEN_PER_SEC}b/s;;; avgrq-sz=${ARQSZ};;; avgqu-sz=${AQUSZ};$WARN_QSZ;$CRIT_QSZ; await=${AWAIT}ms;;;"
+    echo "${OUTPUT}summary: $TPS io/s, read $SECTORS_READ sectors (${KBYTES_READ_PER_SEC}kB/s), write $SECTORS_WRITE sectors (${KBYTES_WRITTEN_PER_SEC}kB/s), queue size $AQUSZ in $TIME seconds | tps=${TPS}io/s;;; read=${BYTES_READ_PER_SEC}b/s;;; write=${BYTES_WRITTEN_PER_SEC}b/s;;; avgrq-sz=${ARQSZ};;; avgqu-sz=${AQUSZ};$WARN_QSZ;$CRIT_QSZ; await=${AWAIT}ms;;;"
 else
-    echo "$TPS io/s, read ${KBYTES_READ_PER_SEC}kB/s, write ${KBYTES_WRITTEN_PER_SEC}kB/s | tps=${TPS}io/s;;; read=${BYTES_READ_PER_SEC}b/s;;; write=${BYTES_WRITTEN_PER_SEC}b/s;;; avgrq-sz=${ARQSZ};;; avgqu-sz=${AQUSZ};$WARN_QSZ;$CRIT_QSZ; await=${AWAIT}ms;;;"
+    echo "$TPS io/s, read ${KBYTES_READ_PER_SEC}kB/s, write ${KBYTES_WRITTEN_PER_SEC}kB/s, ave. queue size ${AQUSZ} | tps=${TPS}io/s;;; read=${BYTES_READ_PER_SEC}b/s;;; write=${BYTES_WRITTEN_PER_SEC}b/s;;; avgrq-sz=${ARQSZ};;; avgqu-sz=${AQUSZ};$WARN_QSZ;$CRIT_QSZ; await=${AWAIT}ms;;;"
 fi
 
 exit $EXITCODE
