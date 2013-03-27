@@ -25,18 +25,28 @@ E_UNKNOWN=3
 BRIEF=0
 
 show_help() {
-	echo "$0 -d DEVICE -w tps,read,write -c tps,read,write | -h"
+    echo
+	echo "$0 -d DEVICE [ -w tps,read,write -c tps,read,write ] "
+    echo "    | [ -W qlen -C qlen ] | -h"
 	echo
-	echo "This plug-in is used to be alerted when maximum hard drive io/s or sectors read|write/s is reached"
+	echo "This plug-in is used to be alerted when maximum hard drive io/s, sectors"
+    echo "read|write/s or average queue length is reached."
 	echo
 	echo "  -d DEVICE            DEVICE must be without /dev (ex: -d sda)"
 	echo "  -w/c TPS,READ,WRITE  TPS means transfer per seconds (aka IO/s)"
 	echo "                       READ and WRITE are in sectors per seconds"
-    echo "  -W/C NUM             Average queue length thresholds."
+    echo "  -W/C NUM             Use average queue length thresholds instead.."
     echo "  -b                   Brief output."
 	echo
-	echo " example: $0 -d sda -w 200,100000,100000 -c 300,200000,200000"
-	echo " example: $0 -d sda -W 50 -C 100"
+    echo "Performance data for graphing is supplied for tps, read, write, avgrq-sz,"
+    echo "avgqu-sz and await (see iostat man page for details)."
+    echo
+	echo "Example: Tps, read and write thresholds:"
+    echo "    $0 -d sda -w 200,100000,100000 -c 300,200000,200000"
+    echo
+	echo "Example: Average queue length threshold:"
+    echo "    $0 -d sda -W 50 -C 100"
+    echo
 }
 
 # process args
