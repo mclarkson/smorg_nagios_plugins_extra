@@ -1,3 +1,5 @@
+# Don't compress/strip/[compile python]
+%define __os_install_post %{nil}
 %define name smorg-nagios-plugins-extra
 %define version 1
 %define release 1.12
@@ -76,7 +78,6 @@ install -m 755 check_uptime.pl ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_up
 install -m 755 check_uptime3 ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_uptime3
 install -m 755 get_stats_memcache ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/get_stats_memcache
 install -m 755 jmxquery.jar ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/jmxquery.jar
-install -m 755 jmxquery.jar ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/jmxquery.jar
 install -m 755 show_users.sh ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/show_users.sh
 install -m 755 sqljdbc.jar ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/sqljdbc.jar
 install -m 755 url.properties ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/url.properties
@@ -136,7 +137,6 @@ install -m 755 check_switch_psu ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_s
 %_libdir/nagios/plugins/check_uptime.pl
 %_libdir/nagios/plugins/check_uptime3
 %_libdir/nagios/plugins/get_stats_memcache
-%_libdir/nagios/plugins/jmxquery.jar
 %_libdir/nagios/plugins/jmxquery.jar
 %_libdir/nagios/plugins/show_users.sh
 %_libdir/nagios/plugins/sqljdbc.jar
