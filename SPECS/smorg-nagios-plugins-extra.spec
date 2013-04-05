@@ -54,7 +54,7 @@ install -m 755 check_hpasm_noacu ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_
 install -m 755 check_iftraffic_nrpe.pl ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_iftraffic_nrpe.pl
 install -m 755 check_iftraffic_nrpe.py ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_iftraffic_nrpe.py
 install -m 755 check_ilo2_health.pl ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_ilo2_health.pl
-install -m 755 check_iostat ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_iostat
+#install -m 755 check_iostat ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_iostat
 install -m 755 check_jboss ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_jboss
 install -m 755 check_jboss.pl ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_jboss.pl
 install -m 755 check_jmx ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_jmx
@@ -63,18 +63,18 @@ install -m 755 check_mem.pl ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_mem.p
 install -m 755 check_memcached ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_memcached
 install -m 755 check_multi ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_multi
 install -m 755 check_mysql_health ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_mysql_health
-install -m 755 check_netio.ncfg ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_netio.ncfg
-install -m 755 check_netio_1.1 ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_netio_1.1
+#install -m 755 check_netio.ncfg ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_netio.ncfg
+#install -m 755 check_netio_1.1 ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_netio_1.1
 install -m 755 check_nfsmounts ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_nfsmounts
 install -m 755 check_om_storage.pl ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_om_storage.pl
 install -m 755 check_openmanage ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_openmanage
 install -m 755 check_puppet_log.sh ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_puppet_log.sh
 install -m 755 check_puppet_version.sh ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_puppet_version.sh
-install -m 755 check_rofs.sh ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_rofs.sh
+#install -m 755 check_rofs.sh ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_rofs.sh
 install -m 755 check_sqljob.sh ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_sqljob.sh
 install -m 755 check_ssl_cert ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_ssl_cert
 install -m 755 check_statusdat_latency ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_statusdat_latency
-install -m 755 check_uptime.pl ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_uptime.pl
+#install -m 755 check_uptime.pl ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_uptime.pl
 install -m 755 check_uptime3 ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_uptime3
 install -m 755 get_stats_memcache ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/get_stats_memcache
 install -m 755 jmxquery.jar ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/jmxquery.jar
@@ -114,7 +114,7 @@ install -m 755 check_switch_psu ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_s
 %_libdir/nagios/plugins/check_iftraffic_nrpe.pl
 %_libdir/nagios/plugins/check_iftraffic_nrpe.py
 %_libdir/nagios/plugins/check_ilo2_health.pl
-%_libdir/nagios/plugins/check_iostat
+#%_libdir/nagios/plugins/check_iostat
 %_libdir/nagios/plugins/check_jboss
 %_libdir/nagios/plugins/check_jboss.pl
 %_libdir/nagios/plugins/check_jmx
@@ -123,18 +123,18 @@ install -m 755 check_switch_psu ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_s
 %_libdir/nagios/plugins/check_memcached
 %_libdir/nagios/plugins/check_multi
 %_libdir/nagios/plugins/check_mysql_health
-%_libdir/nagios/plugins/check_netio.ncfg
-%_libdir/nagios/plugins/check_netio_1.1
+#%_libdir/nagios/plugins/check_netio.ncfg
+#%_libdir/nagios/plugins/check_netio_1.1
 %_libdir/nagios/plugins/check_nfsmounts
 %_libdir/nagios/plugins/check_om_storage.pl
 %_libdir/nagios/plugins/check_openmanage
 %_libdir/nagios/plugins/check_puppet_log.sh
 %_libdir/nagios/plugins/check_puppet_version.sh
-%_libdir/nagios/plugins/check_rofs.sh
+#%_libdir/nagios/plugins/check_rofs.sh
 %_libdir/nagios/plugins/check_sqljob.sh
 %_libdir/nagios/plugins/check_ssl_cert
 %_libdir/nagios/plugins/check_statusdat_latency
-%_libdir/nagios/plugins/check_uptime.pl
+#%_libdir/nagios/plugins/check_uptime.pl
 %_libdir/nagios/plugins/check_uptime3
 %_libdir/nagios/plugins/get_stats_memcache
 %_libdir/nagios/plugins/jmxquery.jar
@@ -156,6 +156,8 @@ install -m 755 check_switch_psu ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_s
 %{__rm} -rf %{buildroot}
 
 %changelog
+* Fri Apr 5 2013 Mark Clarkson <mark.clarkson@smorg.co.uk>
+- Removed check_iostat, check_netio_1.1, check_rofs.sh and check_uptime.pl
 * Wed Jan 9 2013 Mark Clarkson <mark.clarkson@smorg.co.uk>
 - Added check_switch_module.
 * Wed Jan 9 2013 Mark Clarkson <mark.clarkson@smorg.co.uk>
