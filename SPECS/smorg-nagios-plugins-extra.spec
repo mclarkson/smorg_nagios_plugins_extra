@@ -38,6 +38,7 @@ Adds additional plugins to the Nagios plugins folder
 install -d -m 0755 ${RPM_BUILD_ROOT}%_libdir/nagios/plugins
 install -m 4755 check_logfiles_wrapper ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_logfiles_wrapper
 install -m 4755 check_puppet_wrapper ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_puppet_wrapper
+install -m 4755 check_nagios_config_wrapper ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_nagios_config_wrapper
 install -m 755 SqlJobMon.class ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/SqlJobMon.class
 install -m 755 check_all_diskstat.sh ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_all_diskstat.sh
 install -m 755 check_cpu.sh ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_cpu.sh
@@ -63,6 +64,7 @@ install -m 755 check_mem.pl ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_mem.p
 install -m 755 check_memcached ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_memcached
 install -m 755 check_multi ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_multi
 install -m 755 check_mysql_health ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_mysql_health
+install -m 755 check_nagios_config ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_nagios_config
 #install -m 755 check_netio.ncfg ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_netio.ncfg
 #install -m 755 check_netio_1.1 ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_netio_1.1
 install -m 755 check_nfsmounts ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_nfsmounts
@@ -95,8 +97,9 @@ install -m 755 check_switch_psu ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_s
 
 %files
 %defattr(4755,root,root,755)
-%_libdir/nagios/plugins/check_puppet_wrapper
 %_libdir/nagios/plugins/check_logfiles_wrapper
+%_libdir/nagios/plugins/check_nagios_config_wrapper
+%_libdir/nagios/plugins/check_puppet_wrapper
 %defattr(755,root,root,755)
 %_libdir/nagios/plugins/SqlJobMon.class
 %_libdir/nagios/plugins/check_all_diskstat.sh
@@ -123,6 +126,7 @@ install -m 755 check_switch_psu ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_s
 %_libdir/nagios/plugins/check_memcached
 %_libdir/nagios/plugins/check_multi
 %_libdir/nagios/plugins/check_mysql_health
+%_libdir/nagios/plugins/check_nagios_config
 #%_libdir/nagios/plugins/check_netio.ncfg
 #%_libdir/nagios/plugins/check_netio_1.1
 %_libdir/nagios/plugins/check_nfsmounts
@@ -156,6 +160,8 @@ install -m 755 check_switch_psu ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_s
 %{__rm} -rf %{buildroot}
 
 %changelog
+* Mon Apr 29 2013 Mark Clarkson <mark.clarkson@smorg.co.uk>
+- Added check_nagios_config and check_nagios_config_wrapper.
 * Fri Apr 5 2013 Mark Clarkson <mark.clarkson@smorg.co.uk>
 - Removed check_iostat, check_netio_1.1, check_rofs.sh and check_uptime.pl
 * Wed Jan 9 2013 Mark Clarkson <mark.clarkson@smorg.co.uk>
