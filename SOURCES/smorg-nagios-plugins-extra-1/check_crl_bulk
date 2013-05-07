@@ -1,0 +1,224 @@
+#!/bin/bash
+# Copyright(C) 2013 Mark Clarkson <mark.clarkson@smorg.co.uk>
+#
+# This software is provided under the terms of the GNU
+# General Public License (GPL), as published at:
+# http://www.gnu.org/licenses/gpl.html .
+#
+# File: check_nagios_config
+# Date: 7 May 2013
+# Version: 0.10
+# Modified:
+#
+# Purpose: Check a number of CRL files in a directory.
+#
+# Notes:
+#
+
+
+# ---------------------------------------------------------------------------
+# DEFAULTS (Change as necessary)
+# ---------------------------------------------------------------------------
+
+# Default crl location
+CRLDIR="/etc/crl"
+
+# ---------------------------------------------------------------------------
+# DON'T TOUCH ANYTHING BELOW
+# ---------------------------------------------------------------------------
+
+ME="$0"
+CMDLINE="$@"
+TRUE=1
+FALSE=0
+VERSION="0.10"
+OK=0
+WARN=1
+CRIT=2
+UNKN=3
+
+INCL="."
+EXCL="ThIsWoNtMaTcHiHoPe"
+FBLOB=0
+FINCL=
+FEXCL=
+
+# ---------------------------------------------------------------------------
+main()
+# ---------------------------------------------------------------------------
+{
+    retval=$OK
+
+    parse_options "$@"
+
+    sanity_checks
+
+    do_check
+
+    txt="OK:"
+    if [[ $NERRS -gt $CRITLVL ]]; then
+        retval=$CRIT ; txt="CRITICAL: "
+    elif [[ $NWARN -gt $WARNLVL ]]; then
+        retval=$WARN ; txt="WARNING: "
+    fi
+
+    out="$txt $NWARN warnings, $NERRS errors, $NHSTS hosts, $NSVCS services."
+    [[ $WITHPERF -eq 1 ]] && {
+        out="$out | warnings=$NWARN errors=$NERRS"
+        out="$out num_hosts=$NHSTS num_services=$NSVCS"
+    }
+
+    echo "$out"
+
+    exit $retval
+}
+
+# ---------------------------------------------------------------------------
+sanity_checks()
+# ---------------------------------------------------------------------------
+{
+    local binary
+
+    [[ ! -r $CRLDIR || ! -d $CRLDIR ]] && {
+        echo "Cannot access crl dir at '$CRLDIR'"
+        exit 2
+    }
+
+    if ! which date >& /dev/null; then
+        echo "Unknown: openssl binary not found in path. Aborting."
+        exit $UNKN
+    fi
+
+    for binary in openssl find date grep; do
+        if ! which $binary >& /dev/null; then
+            echo "Unknown: $binary binary not found in path. Aborting."
+            exit $UNKN
+        fi
+    done
+
+}
+
+# ----------------------------------------------------------------------------
+usage()
+# ----------------------------------------------------------------------------
+{
+    echo
+    echo "`basename $ME` - Check the 'Next Update' field of a number of CRL,"
+    echo "Certificate Revocation List, files in bulk."
+    echo
+    echo "Requires unix commands: openssl, find, gnu date, gnu grep."
+    echo
+    echo "Usage: `basename $ME` [options]"
+    echo
+    echo " -h      : Display this help text."
+    echo " -c DIR  : Location of the directory containing CRL files."
+    echo "           (Default is: $CRLDIR)"
+    echo " -i REGX : Include files matching the REGX regular expression."
+    echo "           Specify more than once to add more include expressions."
+    echo " -x REGX : Exclude files matching the REGX regular expression."
+    echo "           Specify more than once to add more exclude expressions."
+    echo " -f      : Make REGX searches FILE GLOBS instead. In this case a"
+    echo "           '.' will match a dot only and '*' will be needed."
+    echo
+    echo "Example:"
+    echo " Check all files in the default directory, '$CRLDIR':"
+    echo
+    echo " ./`basename $ME`"
+    echo
+    echo " Exclude all files names containing \".p7\" and 5178 in their name:"
+    echo
+    echo " ./`basename $ME` -x \"\.p7\" -x \"5178\""
+    echo
+    echo " Same as the previous search but using file globbing:"
+    echo
+    echo " ./`basename $ME` -f -x \"*.p7*\" -x \"*5178*\""
+    echo
+    echo " Exclude all files ending in .old:"
+    echo
+    echo " ./`basename $ME` -f -x \"*.old\""
+    echo
+}
+
+# ---------------------------------------------------------------------------
+do_check()
+# ---------------------------------------------------------------------------
+{
+    local fn output T="/var/tmp/check_crl_bulk_tmpfile.$$"
+
+    if [[ $FGLOB -eq 1 ]]; then
+        F="$FINCL $FEXCL"
+    else
+        F="| grep -E \"$INCL\" | grep -E -v \"$EXCL\""
+    fi
+
+    eval find $CRLDIR -type f $F | \
+        while read fn; do
+            :>$T
+            openssl crl -noout -text -in "$fn" -out $T >& /dev/null
+            if grep -qs 'Next Update:' $T; then
+                date=`sed -n \
+                      's/[[:space:]]*Next Update:[[:space:]]*\(.*\)/\1/p' $T`
+                echo "$fn - $date"
+            else
+                echo "$fn - PROBLEM"
+            fi
+        done
+
+    if [[ -e $T ]]; then
+        rm $T
+    else
+        echo "WARNING: No CRL files found."
+        exit $WARN
+    fi
+}
+
+# ----------------------------------------------------------------------------
+parse_options()
+# ----------------------------------------------------------------------------
+# Purpose: Parse program options and set globals.
+# Arguments: None
+# Returns: Nothing
+{
+    set -- $CMDLINE
+    while true
+    do
+    case $1 in
+            -c) CRLDIR="$2" ; shift
+            ;;
+            -i) if [[ $INCL = "." ]]; then
+                    INCL="$2"
+                    FINCL=" -name \"$2\""
+                else
+                    INCL+="|$2"
+                    FINCL+=" -name \"$2\""
+                fi
+                shift
+            ;;
+            -x) if [[ $EXCL = "ThIsWoNtMaTcHiHoPe" ]]; then
+                    EXCL="$2"
+                    FEXCL="! -name \"$2\""
+                else
+                    EXCL+="|$2"
+                    FEXCL+=" ! -name \"$2\""
+                fi
+                shift
+            ;;
+            -f) FGLOB=1
+            ;;
+            -h) usage
+                exit 0
+            ;;
+            ?*) usage
+                echo -e "\nInvalid option\n"
+                exit 4
+            ;;
+        esac
+    shift 1 || break
+    done
+
+    CRLDIR="${CRLDIR%/}${CRLDIR:+/}"
+}
+
+main "$@"
+
+exit 0
