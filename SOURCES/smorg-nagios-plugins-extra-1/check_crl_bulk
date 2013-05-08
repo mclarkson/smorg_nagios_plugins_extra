@@ -52,6 +52,8 @@ declare -i NINVALID=0 NEXPIRED=0 NOK=0
 main()
 # ---------------------------------------------------------------------------
 {
+    local nfiles=0
+
     retval=$OK
 
     parse_options "$@"
@@ -60,16 +62,28 @@ main()
 
     do_check
 
+    nfiles=$(($NINVALID+$NEXPIRED+$NOK))
+
     txt="OK:"
+
+    if [[ $nfiles -eq 0 ]]; then
+        [[ $WITHPERF -eq 1 ]] && {
+            out="| ok=$NOK expired=$NEXPIRED invalid=$NINVALID"
+        }
+        txt="CRITICAL: No CRL files found."
+        printf "$txt $out\n"
+        exit $CRIT
+    fi
+
     if [[ $NEXPIRED -gt 0 || $NINVALID -gt 0 ]]; then
         retval=$CRIT ; txt="CRITICAL: "
     fi
 
-    if [[ -n $NUMFILES && $NUMFILES -ne $(($NINVALID+$NEXPIRED+$NOK)) ]];
+    if [[ -n $NUMFILES && $NUMFILES -ne $nfiles ]];
     then
         retval=$CRIT
         txt="CRITICAL: Unexpected number of files"
-        txt+=" ( $NUMFILES expected, found $(($NINVALID+$NEXPIRED+$NOK)) ). "
+        txt+=" ( $NUMFILES expected, found $nfiles ). "
     fi
 
     out="$txt$NOK OK, $NEXPIRED expired, $NINVALID invalid."
@@ -223,9 +237,6 @@ do_check()
 
     if [[ -e $T ]]; then
         rm $T
-    else
-        echo "WARNING: No CRL files found."
-        exit $WARN
     fi
 }
 
