@@ -5,7 +5,7 @@
 # General Public License (GPL), as published at:
 # http://www.gnu.org/licenses/gpl.html .
 #
-# File: check_nagios_config
+# File: check_crl_bulk
 # Date: 7 May 2013
 # Version: 0.10
 # Modified:
@@ -45,8 +45,8 @@ FEXCL=
 UNITS=
 NUMFILES=
 MESSAGE=""
-declare -i WITHPERF=0 VERSION=0 REMAINING=0
-declare -i NINVALID=0 NEXPIRED=0 NOK=0
+declare -i WITHPERF=0 VERSION=0 REMAINING=0 WARNTHR=0
+declare -i NEXPIRING=0 NINVALID=0 NEXPIRED=0 NOK=0
 
 # ---------------------------------------------------------------------------
 main()
@@ -62,36 +62,44 @@ main()
 
     do_check
 
-    nfiles=$(($NINVALID+$NEXPIRED+$NOK))
+    nfiles=$(($NINVALID+$NEXPIRED+$NOK+$NEXPIRING))
 
     txt="OK:"
 
     if [[ $nfiles -eq 0 ]]; then
         [[ $WITHPERF -eq 1 ]] && {
-            out="| ok=$NOK expired=$NEXPIRED invalid=$NINVALID"
+            out="| ok=0 expired=0 invalid=0 expiring=0"
         }
         txt="CRITICAL: No CRL files found."
         printf "$txt $out\n"
         exit $CRIT
     fi
 
+    if [[ $NEXPIRING -gt 0 ]]; then
+        retval=$WARN ; txt="WARNING:"
+        out="CRLs expiring soon. "
+    fi
+
     if [[ $NEXPIRED -gt 0 || $NINVALID -gt 0 ]]; then
-        retval=$CRIT ; txt="CRITICAL: "
+        retval=$CRIT ; txt="CRITICAL:"
     fi
 
     if [[ -n $NUMFILES && $NUMFILES -ne $nfiles ]];
     then
         retval=$CRIT
-        txt="CRITICAL: Unexpected number of files"
-        txt+=" ( $NUMFILES expected, found $nfiles ). "
+        txt="CRITICAL:"
+        out="Unexpected number of files"
+        out+=" ( $NUMFILES expected, found $nfiles ). "
     fi
 
-    out="$txt$NOK OK, $NEXPIRED expired, $NINVALID invalid."
+    out="$txt $out$NOK OK, $NEXPIRED expired, $NEXPIRING expiring, "
+    out+="$NINVALID invalid."
     [[ $VERBOSE -eq 1 ]] && {
-        out="$out$MESSAGE"
+        out+="$MESSAGE"
     }
     [[ $WITHPERF -eq 1 ]] && {
-        out="$out | ok=$NOK expired=$NEXPIRED invalid=$NINVALID"
+        out+=" | ok=$NOK expired=$NEXPIRED expiring=$NEXPIRING "
+        out+="invalid=$NINVALID"
     }
 
     printf "$out\n"
@@ -109,11 +117,6 @@ sanity_checks()
         echo "Cannot access crl dir at '$CRLDIR'"
         exit 2
     }
-
-    if ! which date >& /dev/null; then
-        echo "Unknown: openssl binary not found in path. Aborting."
-        exit $UNKN
-    fi
 
     for binary in openssl find date grep; do
         if ! which $binary >& /dev/null; then
@@ -146,12 +149,17 @@ usage()
     echo " -n NUM  : Expected number of files."
     echo " -p      : Add performance data for graphing."
     echo " -v      : Be more verbose. Show file names and status."
+    echo " -w NUM  : Warn if a CRL is within NUM hours of expiring."
     echo
     echo "Examples:"
     echo
     echo " Check all files in the default directory, '$CRLDIR':"
     echo
     echo " ./`basename $ME`"
+    echo
+    echo " Check all files. Show a warning if a CRL will expire within 2 days."
+    echo
+    echo " ./`basename $ME` -w 48"
     echo
     echo " Exclude all files names containing \".p7\" and 5178 in their name:"
     echo
@@ -220,8 +228,13 @@ do_check()
             if [[ $hrs -lt 0 ]]; then
                 (( hrs*=-1 ))
                 timeleft $hrs
-                M="${fn##*/} - $REMAINING $UNITS left"
-                NOK+=1
+                if [[ $hrs -le $WARNTHR ]]; then
+                    NEXPIRING+=1
+                    M="${fn##*/} - $REMAINING $UNITS left (!)"
+                else
+                    NOK+=1
+                    M="${fn##*/} - $REMAINING $UNITS left"
+                fi
             else
                 timeleft $hrs
                 M="${fn##*/} - EXPIRED"
@@ -252,6 +265,8 @@ parse_options()
     do
     case $1 in
             -c) CRLDIR="$2" ; shift
+            ;;
+            -w) WARNTHR="$2" ; shift
             ;;
             -n) NUMFILES="$2" ; shift
             ;;
