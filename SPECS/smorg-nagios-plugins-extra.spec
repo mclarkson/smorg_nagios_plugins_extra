@@ -60,6 +60,7 @@ install -m 755 check_ilo2_health.pl ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/che
 install -m 755 check_jboss ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_jboss
 install -m 755 check_jboss.pl ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_jboss.pl
 install -m 755 check_jmx ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_jmx
+install -m 755 check_jmx.sh ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_jmx.sh
 install -m 755 check_logfiles ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_logfiles
 install -m 755 check_mem.pl ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_mem.pl
 install -m 755 check_memcached ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_memcached
@@ -123,6 +124,7 @@ install -m 755 check_switch_psu ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_s
 %_libdir/nagios/plugins/check_jboss
 %_libdir/nagios/plugins/check_jboss.pl
 %_libdir/nagios/plugins/check_jmx
+%_libdir/nagios/plugins/check_jmx.sh
 %_libdir/nagios/plugins/check_logfiles
 %_libdir/nagios/plugins/check_mem.pl
 %_libdir/nagios/plugins/check_memcached
@@ -164,6 +166,7 @@ install -m 755 check_switch_psu ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_s
 %changelog
 * Wed May 8 2013 Mark Clarkson <mark.clarkson@smorg.co.uk>
 - Added check_crl_bulk.
+- Added check_jmx.sh wrapper to format perf data.
 * Mon Apr 29 2013 Mark Clarkson <mark.clarkson@smorg.co.uk>
 - Added check_nagios_config and check_nagios_config_wrapper.
 * Fri Apr 5 2013 Mark Clarkson <mark.clarkson@smorg.co.uk>
