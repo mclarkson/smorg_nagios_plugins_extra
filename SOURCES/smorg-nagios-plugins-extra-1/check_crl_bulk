@@ -42,6 +42,11 @@ EXCL="ThIsWoNtMaTcHiHoPe"
 FBLOB=0
 FINCL=
 FEXCL=
+UNITS=
+NUMFILES=
+MESSAGE=""
+declare -i WITHPERF=0 VERSION=0 REMAINING=0
+declare -i NINVALID=0 NEXPIRED=0 NOK=0
 
 # ---------------------------------------------------------------------------
 main()
@@ -56,19 +61,26 @@ main()
     do_check
 
     txt="OK:"
-    if [[ $NERRS -gt $CRITLVL ]]; then
+    if [[ $NEXPIRED -gt 0 || $NINVALID -gt 0 ]]; then
         retval=$CRIT ; txt="CRITICAL: "
-    elif [[ $NWARN -gt $WARNLVL ]]; then
-        retval=$WARN ; txt="WARNING: "
     fi
 
-    out="$txt $NWARN warnings, $NERRS errors, $NHSTS hosts, $NSVCS services."
+    if [[ -n $NUMFILES && $NUMFILES -ne $(($NINVALID+$NEXPIRED+$NOK)) ]];
+    then
+        retval=$CRIT
+        txt="CRITICAL: Unexpected number of files"
+        txt+=" ( $NUMFILES expected, found $(($NINVALID+$NEXPIRED+$NOK)) ). "
+    fi
+
+    out="$txt$NOK OK, $NEXPIRED expired, $NINVALID invalid."
+    [[ $VERBOSE -eq 1 ]] && {
+        out="$out$MESSAGE"
+    }
     [[ $WITHPERF -eq 1 ]] && {
-        out="$out | warnings=$NWARN errors=$NERRS"
-        out="$out num_hosts=$NHSTS num_services=$NSVCS"
+        out="$out | ok=$NOK expired=$NEXPIRED invalid=$NINVALID"
     }
 
-    echo "$out"
+    printf "$out\n"
 
     exit $retval
 }
@@ -106,8 +118,6 @@ usage()
     echo "`basename $ME` - Check the 'Next Update' field of a number of CRL,"
     echo "Certificate Revocation List, files in bulk."
     echo
-    echo "Requires unix commands: openssl, find, gnu date, gnu grep."
-    echo
     echo "Usage: `basename $ME` [options]"
     echo
     echo " -h      : Display this help text."
@@ -119,8 +129,12 @@ usage()
     echo "           Specify more than once to add more exclude expressions."
     echo " -f      : Make REGX searches FILE GLOBS instead. In this case a"
     echo "           '.' will match a dot only and '*' will be needed."
+    echo " -n NUM  : Expected number of files."
+    echo " -p      : Add performance data for graphing."
+    echo " -v      : Be more verbose. Show file names and status."
     echo
-    echo "Example:"
+    echo "Examples:"
+    echo
     echo " Check all files in the default directory, '$CRLDIR':"
     echo
     echo " ./`basename $ME`"
@@ -133,17 +147,46 @@ usage()
     echo
     echo " ./`basename $ME` -f -x \"*.p7*\" -x \"*5178*\""
     echo
-    echo " Exclude all files ending in .old:"
+    echo " Exclude all files ending in .old and check that there are 6 files:"
     echo
-    echo " ./`basename $ME` -f -x \"*.old\""
+    echo " ./`basename $ME` -f -x \"*.old\" -n 6"
     echo
+    echo " Check all files, show their status, and add performance stats."
+    echo
+    echo " ./`basename $ME` -v -p"
+    echo
+}
+
+# ---------------------------------------------------------------------------
+timeleft()
+# ---------------------------------------------------------------------------
+# Roughly convert and truncate hours to hours, days, months, years.
+# Sets the globals REMAINING and UNITS
+# $1 - hours
+{
+  local -i hours=$1
+
+  if [[ $hours -lt 48 ]]; then
+    REMAINING=$hours
+    UNITS="hours" ; [[ $hours -eq 1 ]] && UNITS="hour"
+  elif [[ $hours -lt $((30*24)) ]]; then
+    REMAINING=$((hours/24))
+    UNITS="days" ; [[ $REMAINING -eq 1 ]] && UNITS="day"
+  elif [[ $hours -lt $((365*24)) ]]; then
+    REMAINING=$((hours/(30*24)))
+    UNITS="months" ; [[ $REMAINING -eq 1 ]] && UNITS="month"
+  else
+    REMAINING=$((hours/(365*24)))
+    UNITS="years" ; [[ $REMAINING -eq 1 ]] && UNITS="year"
+  fi
 }
 
 # ---------------------------------------------------------------------------
 do_check()
 # ---------------------------------------------------------------------------
 {
-    local fn output T="/var/tmp/check_crl_bulk_tmpfile.$$"
+    local fn output M date secs T="/var/tmp/check_crl_bulk_tmpfile.$$"
+    local -i hrs secs now
 
     if [[ $FGLOB -eq 1 ]]; then
         F="$FINCL $FEXCL"
@@ -151,18 +194,32 @@ do_check()
         F="| grep -E \"$INCL\" | grep -E -v \"$EXCL\""
     fi
 
-    eval find $CRLDIR -type f $F | \
-        while read fn; do
-            :>$T
-            openssl crl -noout -text -in "$fn" -out $T >& /dev/null
-            if grep -qs 'Next Update:' $T; then
-                date=`sed -n \
-                      's/[[:space:]]*Next Update:[[:space:]]*\(.*\)/\1/p' $T`
-                echo "$fn - $date"
+    while read fn; do
+        :>$T
+        openssl crl -noout -text -in "$fn" -out $T >& /dev/null
+        if grep -qs 'Next Update:' $T; then
+            date=`sed -n \
+                  's/[[:space:]]*Next Update:[[:space:]]*\(.*\)/\1/p' $T`
+            secs=`date -d "$date" +%s`
+            now=`date +%s`
+            hrs=$((($now/60/60)-($secs/60/60)))
+            if [[ $hrs -lt 0 ]]; then
+                (( hrs*=-1 ))
+                timeleft $hrs
+                M="${fn##*/} - $REMAINING $UNITS left"
+                NOK+=1
             else
-                echo "$fn - PROBLEM"
+                timeleft $hrs
+                M="${fn##*/} - EXPIRED"
+                M+=" ($REMAINING $UNITS ago)"
+                NEXPIRED+=1
             fi
-        done
+        else
+            M="${fn##*/} - INVALID FILE."
+            NINVALID+=1
+        fi
+        MESSAGE+="\n$M"
+    done < <( eval find $CRLDIR -type f $F )
 
     if [[ -e $T ]]; then
         rm $T
@@ -185,6 +242,8 @@ parse_options()
     case $1 in
             -c) CRLDIR="$2" ; shift
             ;;
+            -n) NUMFILES="$2" ; shift
+            ;;
             -i) if [[ $INCL = "." ]]; then
                     INCL="$2"
                     FINCL=" -name \"$2\""
@@ -205,6 +264,10 @@ parse_options()
             ;;
             -f) FGLOB=1
             ;;
+            -p) WITHPERF=1
+            ;;
+            -v) VERBOSE=1
+            ;;
             -h) usage
                 exit 0
             ;;
@@ -220,5 +283,10 @@ parse_options()
 }
 
 main "$@"
+
+#for (( a=24 ; a<365*30 ; a++ )) ; do
+#    timeleft $a
+#    echo "$REMAINING $UNITS"
+#done
 
 exit 0

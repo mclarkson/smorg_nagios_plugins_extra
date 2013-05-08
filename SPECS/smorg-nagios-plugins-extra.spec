@@ -42,6 +42,7 @@ install -m 4755 check_nagios_config_wrapper ${RPM_BUILD_ROOT}%_libdir/nagios/plu
 install -m 755 SqlJobMon.class ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/SqlJobMon.class
 install -m 755 check_all_diskstat.sh ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_all_diskstat.sh
 install -m 755 check_cpu.sh ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_cpu.sh
+install -m 755 check_crl_bulk ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_crl_bulk
 install -m 755 check_dell_bladechassis ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_dell_bladechassis
 install -m 755 check_diskstat.sh ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_diskstat.sh
 install -m 755 check_drbd-0.5.2 ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_drbd-0.5.2
@@ -104,6 +105,7 @@ install -m 755 check_switch_psu ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_s
 %_libdir/nagios/plugins/SqlJobMon.class
 %_libdir/nagios/plugins/check_all_diskstat.sh
 %_libdir/nagios/plugins/check_cpu.sh
+%_libdir/nagios/plugins/check_crl_bulk
 %_libdir/nagios/plugins/check_dell_bladechassis
 %_libdir/nagios/plugins/check_diskstat.sh
 %_libdir/nagios/plugins/check_drbd-0.5.2
@@ -160,6 +162,8 @@ install -m 755 check_switch_psu ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_s
 %{__rm} -rf %{buildroot}
 
 %changelog
+* Wed May 8 2013 Mark Clarkson <mark.clarkson@smorg.co.uk>
+- Added check_crl_bulk.
 * Mon Apr 29 2013 Mark Clarkson <mark.clarkson@smorg.co.uk>
 - Added check_nagios_config and check_nagios_config_wrapper.
 * Fri Apr 5 2013 Mark Clarkson <mark.clarkson@smorg.co.uk>
