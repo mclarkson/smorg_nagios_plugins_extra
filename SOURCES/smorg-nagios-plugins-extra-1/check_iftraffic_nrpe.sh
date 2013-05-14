@@ -59,7 +59,7 @@ IFCACHE=
 MESSAGE=
 
 declare -i WITHPERF=0 PRUNESLAVES=0 CHECKBOND=0 PRUNEDOWN=0 SEMIAUTO=0
-declare -i USEBYTES=0 IFSPEED=100 WARNPC=0 WARNVAL=0
+declare -i USEBYTES=0 IFSPEED=100 WARNPC=0 WARNVAL=0 BRIEF=0
 
 declare -a IFL         # Interface list 
 declare -a IFLL        # Interface list last (from cache)
@@ -112,10 +112,19 @@ main()
     done
     [[ -n $a ]] && ALERT="$a$IS DOWN. "
     [[ $bwe -eq 1 ]] && {
-        ALERT+="Bandwidth threshold exceeded for $b. "
+        if [[ $BRIEF -eq 1 ]]; then
+            ALERT+="Bandwidth threshold exceeded. "
+        else
+            ALERT+="Bandwidth threshold exceeded for $b. "
+        fi
     }
 
-    out="$txt ${ALERT}Stats: $MESSAGE"
+    if [[ $BRIEF -eq 1 ]]; then
+        [[ $WITHPERF -eq 0 ]] && out="$txt ${ALERT}"
+        [[ $WITHPERF -eq 1 ]] && out="$txt ${ALERT}See graphs for stats."
+    else
+        out="$txt ${ALERT}Stats: $MESSAGE"
+    fi
 
     [[ $WITHPERF -eq 1 ]] && {
         out+=" | $PERF"
@@ -177,6 +186,9 @@ usage()
     echo " -k      : Don't include the slaves of bond devices or bond"
     echo "           devices with no slaves."
     echo " -p      : Include performance data (for graphing)."
+    echo " -b      : Brief - exclude stats in status message. Useful for"
+    echo "           systems with many interfaces where a large status"
+    echo "           message might cause truncation of the performance data."
     echo " -I NAME : Interface that must always be included. This is not a"
     echo "           regular expression - it should match one interface only."
     echo "           Emits warning if an interface specified here is down."
@@ -495,6 +507,8 @@ parse_options()
                 shift
             ;;
             -p) WITHPERF=1
+            ;;
+            -b) BRIEF=1
             ;;
             -d) PRUNEDOWN=1
             ;;
