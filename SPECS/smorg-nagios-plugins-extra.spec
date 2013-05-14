@@ -55,6 +55,7 @@ install -m 755 check_hpasm ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_hpasm
 install -m 755 check_hpasm_noacu ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_hpasm_noacu
 install -m 755 check_iftraffic_nrpe.pl ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_iftraffic_nrpe.pl
 install -m 755 check_iftraffic_nrpe.py ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_iftraffic_nrpe.py
+install -m 755 check_iftraffic_nrpe.sh ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_iftraffic_nrpe.sh
 install -m 755 check_ilo2_health.pl ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_ilo2_health.pl
 #install -m 755 check_iostat ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_iostat
 install -m 755 check_jboss ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_jboss
@@ -119,6 +120,7 @@ install -m 755 check_switch_psu ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_s
 %_libdir/nagios/plugins/check_hpasm_noacu
 %_libdir/nagios/plugins/check_iftraffic_nrpe.pl
 %_libdir/nagios/plugins/check_iftraffic_nrpe.py
+%_libdir/nagios/plugins/check_iftraffic_nrpe.sh
 %_libdir/nagios/plugins/check_ilo2_health.pl
 #%_libdir/nagios/plugins/check_iostat
 %_libdir/nagios/plugins/check_jboss
@@ -164,6 +166,8 @@ install -m 755 check_switch_psu ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_s
 %{__rm} -rf %{buildroot}
 
 %changelog
+* Tue May 14 2013 Mark Clarkson <mark.clarkson@smorg.co.uk>
+- Added check_iftraffic_nrpe.sh.
 * Wed May 8 2013 Mark Clarkson <mark.clarkson@smorg.co.uk>
 - Added check_crl_bulk.
 - Added check_jmx.sh wrapper to format perf data.
