@@ -531,7 +531,7 @@ parse_options()
     shift 1 || break
     done
 
-    IFSPEED=$(((IFSPEED*1024*1024)/8))
+    IFSPEED=$((IFSPEED*1024*1024))
     [[ $WARNPC -gt 0 ]] && WARNVAL=$((($WARNPC*$IFSPEED)/100))
 }
 
