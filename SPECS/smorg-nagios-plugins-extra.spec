@@ -47,6 +47,7 @@ install -m 755 check_dell_bladechassis ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/
 install -m 755 check_diskstat.sh ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_diskstat.sh
 install -m 755 check_drbd-0.5.2 ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_drbd-0.5.2
 install -m 755 check_esx.pl ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_esx.pl
+install -m 755 check_file_exists_glob ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_file_exists_glob
 install -m 755 check_file.pl ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_file.pl
 install -m 755 check_fs_ro.sh ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_fs_ro.sh
 install -m 755 check_heartbeat_nodes ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_heartbeat_nodes
@@ -112,6 +113,7 @@ install -m 755 check_switch_psu ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_s
 %_libdir/nagios/plugins/check_diskstat.sh
 %_libdir/nagios/plugins/check_drbd-0.5.2
 %_libdir/nagios/plugins/check_esx.pl
+%_libdir/nagios/plugins/check_file_exists_glob
 %_libdir/nagios/plugins/check_file.pl
 %_libdir/nagios/plugins/check_fs_ro.sh
 %_libdir/nagios/plugins/check_heartbeat_nodes
@@ -166,6 +168,8 @@ install -m 755 check_switch_psu ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_s
 %{__rm} -rf %{buildroot}
 
 %changelog
+* Wed May 22 2013 Mark Clarkson <mark.clarkson@smorg.co.uk>
+- Added check_file_exists_glob.
 * Tue May 14 2013 Mark Clarkson <mark.clarkson@smorg.co.uk>
 - Added check_iftraffic_nrpe.sh.
 * Wed May 8 2013 Mark Clarkson <mark.clarkson@smorg.co.uk>

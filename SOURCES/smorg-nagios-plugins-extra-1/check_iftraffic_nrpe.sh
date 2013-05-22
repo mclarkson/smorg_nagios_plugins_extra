@@ -15,6 +15,8 @@
 # Notes:
 #
 
+# TODO REMOVE DEBUG
+START="`date`"
 
 # ---------------------------------------------------------------------------
 # DEFAULTS (Change as necessary)
@@ -352,6 +354,7 @@ read_iflist_stats_from_file()
 # ---------------------------------------------------------------------------
 write_iflist_stats_to_file()
 # ---------------------------------------------------------------------------
+# $1 - Cache file location
 {
     local rx tx t time=`date +%s`
 
@@ -363,7 +366,7 @@ write_iflist_stats_to_file()
         t+="${IFL[i]} $rx $tx $time\n"
     done
 
-    printf "$t" >$IFCACHE
+    printf "$t" >$1
 }
 
 # ---------------------------------------------------------------------------
@@ -380,7 +383,7 @@ do_check()
     if [[ -e $IFCACHE ]]; then
         read_iflist_stats_from_file
     else
-        write_iflist_stats_to_file
+        write_iflist_stats_to_file $IFCACHE
         echo "OK: Got first data sample."
         exit $OK
     fi
@@ -393,7 +396,7 @@ do_check()
         [[ ${IFshow[i]} -ne $INCLUDE ]] && continue
         [[ ${IFL[i]} != ${IFLL[i]} ]] && {
             # Something has changed. Pretend this is the first time again.
-            write_iflist_stats_to_file
+            write_iflist_stats_to_file $IFCACHE
             echo "WARNING: Interfaces changed. Got first sample, again."
             exit $WARN
         }
@@ -404,6 +407,11 @@ do_check()
         deltats=$((now-${ts[i]}))
         [[ $deltats -le 0 ]] && {
             echo "UNKNOWN: Invalid time delta ($deltats). Aborting."
+            echo "TIME START: $START" >/var/tmp/check_iftraffic.err
+            echo -e "TIME END  : `date`\n" >>/var/tmp/check_iftraffic.err
+            ps -ef >>/var/tmp/check_iftraffic.err
+            cp $IFCACHE $IFCACHE.errold
+            write_iflist_stats_to_file $IFCACHE.errnew
             exit $UNKN
         }
         # Bytes per second (perf output)
@@ -453,7 +461,7 @@ do_check()
         MESSAGE+="(in/out in bytes/s)"
     fi
 
-    write_iflist_stats_to_file
+    write_iflist_stats_to_file $IFCACHE
 }
 
 # ----------------------------------------------------------------------------
