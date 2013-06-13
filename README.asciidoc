@@ -25,11 +25,7 @@ smorg_nagios_plugins_extra
 | check_hp_bladechassis | | YES | Check HP Blade chassis health using SNMP.
 | check_iftraffic_nrpe.sh | http://exchange.nagios.org/directory/Plugins/Network-Connections%2C-Stats-and-Bandwidth/check_iftraffic_nrpe-2Esh/details[nagios exchange] | YES | Finds network interfaces and reports in/out traffic.
 | check_ilo2_health.pl | | | HP server check using ILO 2.
-| check_jboss | | | This a wrapper around check_jboss.pl that remaps the following chars \\
-\-NNN to <NNN \\
-\+NNN to >NNN \\
-\~NNN to \!NNN \\
-\~SSS to \!"SSS"
+| check_jboss | | | This a wrapper around check_jboss.pl that remaps the following chars: -NNN to <NNN, +NNN to >NNN, ~NNN to !NNN, ~SSS to !"SSS".
 | check_jboss.pl | | | Check JBOSS using _twiddle_.
 | check_jmx | http://exchange.nagios.org/directory/Plugins/Java-Applications-and-Servers/check_jmx/details[nagios exchange] | | Wrapper around a Java JMX checker.
 | check_logfiles | http://labs.consol.de/lang/en/nagios/check_logfiles/[Consol Labs] | YES | Check a logfile for a pattern.
@@ -58,14 +54,15 @@ smorg_nagios_plugins_extra
 
 [cols="<,<,^,<",frame="topbot",options="header,autowidth"]
 |===========================================================================================================
-| -check_iftraffic- | | | Phasing out - Don't use
-| -check_iftraffic_nrpe.pl- | | | Phasing out - Don't use
-| -check_iftraffic_nrpe.py- | http://exchange.nagios.org/directory/Plugins/Network-Connections%2C-Stats-and-Bandwidth/check_iftraffic_nrpe-2Epy/details[nagios exchange] | YES | Phasing out -Finds network interfaces and reports in/out traffic. If running manually use the nagios account since a cache file is written to '/var/tmp'.-
-| -check_iostat- | | | -Deleted.-
-| -check_multi- | | | Phasing out. Don't use.
-| -check_netio_1.1- | | | -Deleted.-
-| -check_rofs.sh- | | | -Deleted-
-| -check_snmp_load- | | | Phasing out. Don't use.
-| -check_snmp_netint.pl- | | | Phasing out. Don't use.
-| -check_uptime.pl- | | | -Deleted-
+| Plugin Filename | Source | Graphs | Description
+| check_iftraffic | | | Phasing out - Don't use
+| check_iftraffic_nrpe.pl | | | Phasing out - Don't use
+| check_iftraffic_nrpe.py | http://exchange.nagios.org/directory/Plugins/Network-Connections%2C-Stats-and-Bandwidth/check_iftraffic_nrpe-2Epy/details[nagios exchange] | YES | Phasing out -Finds network interfaces and reports in/out traffic. If running manually use the nagios account since a cache file is written to '/var/tmp'.-
+| check_iostat | | | -Deleted.-
+| check_multi | | | Phasing out. Don't use.
+| check_netio_1.1 | | | -Deleted.-
+| check_rofs.sh | | | -Deleted-
+| check_snmp_load | | | Phasing out. Don't use.
+| check_snmp_netint.pl | | | Phasing out. Don't use.
+| check_uptime.pl | | | -Deleted-
 |===========================================================================================================
