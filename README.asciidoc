@@ -3,62 +3,62 @@ smorg_nagios_plugins_extra
 
 [cols="<,<,^,<",frame="topbot",options="header,autowidth"]
 |===========================================================================================================
-| Plugin Filename | Source | Graphs | Description |
-| check_diskstat.sh | [nagios exchange|http://exchange.nagios.org/directory/Plugins/System-Metrics/Storage-Subsystem/check_diskstat/details] | YES | ([FABOPS-14042|https://jira.dev.bbc.co.uk/browse/FABOPS-14042]) Disk statistics. Alerts and graphs. |
-| check_all_diskstat.sh | | YES | Wraps check_diskstat.sh to find all disks. Performance data might get truncated if too many disks are found, in which case no stats will be graphed. |
-| check_cisco_nexus_cpu.pl | [nagios exchange|http://exchange.nagios.org/directory/Plugins/Network-Connections%2C-Stats-and-Bandwidth/check_cisco_nexus_cpu/details] | YES | CPU check for Cisco Nexus platform switches. |
-| check_cisco_nexus_hardware.pl | [nagios exchange|http://exchange.nagios.org/directory/Plugins/Network-Connections%2C-Stats-and-Bandwidth/check_cisco_nexus_cpu/details] | | Hardware check for Cisco Nexus platform switches. |
-| check_cisco_snmp.pl | [nagios exchange|http://exchange.nagios.org/directory/Plugins/Hardware/Network-Gear/Cisco/Check-Cisco-Snmp/details] | | Can check various Cisco hardware statuses. |
-| check_cpu.sh | [nagios exchange|http://exchange.nagios.org/directory/Plugins/Operating-Systems/Linux/check_cpu-2Esh/details] | YES | CPU check. Takes the average of multiple samples. |
-| check_crl_bulk | [nagios exchange|http://exchange.nagios.org/directory/Plugins/Security/check_crl_bulk/details] | YES | Check Certificate Revocation List files. |
-| check_dell_bladechassis | [nagios exchange|http://exchange.nagios.org/directory/Plugins/Hardware/Server-Hardware/Dell/check_dell_bladechassis/details] | | Dell SNMP blade chassis check. |
-| check_drbd-0.5.2 | | | DRBD replication check. |
-| check_esx.pl | | | Requires VMware-vSphere-SDK-for-Perl to be installed on the nagios server. |
-| check_file.pl | | | Check if a file exists or is empty. |
-| check_file_exists_glob | [GitHub|https://github.com/mclarkson/check_file_exists_glob] | YES | Check for existence or non-existence of a file or files - using glob patterns. |
-| check_fs_ro.sh | | | Check that no 'ext' filesystems are in read-only state. |
-| check_heartbeat_nodes | [nagios exchange|http://exchange.nagios.org/directory/Plugins/Clustering-and-High-2DAvailability/check_heartbeat_nodes/details] | | Check High Availability status using crm_mon. |
-| check_hpasm | [nagios exchange|http://exchange.nagios.org/directory/Plugins/Hardware/Server-Hardware/HP-%28Compaq%29/check_hpasm/details] | YES | Check HP Proliant/Blade health using SNMP/hpasmcli/hpacucli. |
-| check_hpasm_noacu | | YES | Same as check_hpasm but with 'HPACUCLI = 0'. |
-| check_hp_bladechassis | | YES | Check HP Blade chassis health using SNMP. |
-| -check_iftraffic- | | | Phasing out - Don't use |
-| -check_iftraffic_nrpe.pl- | | | Phasing out - Don't use |
-| -check_iftraffic_nrpe.py- | [nagios exchange|http://exchange.nagios.org/directory/Plugins/Network-Connections%2C-Stats-and-Bandwidth/check_iftraffic_nrpe-2Epy/details] | YES | Phasing out -Finds network interfaces and reports in/out traffic. If running manually use the nagios account since a cache file is written to '/var/tmp'.- |
-| check_iftraffic_nrpe.sh | [nagios exchange|http://exchange.nagios.org/directory/Plugins/Network-Connections%2C-Stats-and-Bandwidth/check_iftraffic_nrpe-2Esh/details] | YES | Finds network interfaces and reports in/out traffic. |
-| check_ilo2_health.pl | | | HP server check using ILO 2. |
-| -check_iostat- | | | -Deleted.- |
+| Plugin Filename | Source | Graphs | Description
+| check_diskstat.sh | http://exchange.nagios.org/directory/Plugins/System-Metrics/Storage-Subsystem/check_diskstat/details[nagios exchange] | YES | Disk statistics. Alerts and graphs.
+| check_all_diskstat.sh | | YES | Wraps check_diskstat.sh to find all disks. Performance data might get truncated if too many disks are found, in which case no stats will be graphed.
+| check_cisco_nexus_cpu.pl | [nagios exchange|http://exchange.nagios.org/directory/Plugins/Network-Connections%2C-Stats-and-Bandwidth/check_cisco_nexus_cpu/details] | YES | CPU check for Cisco Nexus platform switches.
+| check_cisco_nexus_hardware.pl | [nagios exchange|http://exchange.nagios.org/directory/Plugins/Network-Connections%2C-Stats-and-Bandwidth/check_cisco_nexus_cpu/details] | | Hardware check for Cisco Nexus platform switches.
+| check_cisco_snmp.pl | [nagios exchange|http://exchange.nagios.org/directory/Plugins/Hardware/Network-Gear/Cisco/Check-Cisco-Snmp/details] | | Can check various Cisco hardware statuses.
+| check_cpu.sh | [nagios exchange|http://exchange.nagios.org/directory/Plugins/Operating-Systems/Linux/check_cpu-2Esh/details] | YES | CPU check. Takes the average of multiple samples.
+| check_crl_bulk | [nagios exchange|http://exchange.nagios.org/directory/Plugins/Security/check_crl_bulk/details] | YES | Check Certificate Revocation List files.
+| check_dell_bladechassis | [nagios exchange|http://exchange.nagios.org/directory/Plugins/Hardware/Server-Hardware/Dell/check_dell_bladechassis/details] | | Dell SNMP blade chassis check.
+| check_drbd-0.5.2 | | | DRBD replication check.
+| check_esx.pl | | | Requires VMware-vSphere-SDK-for-Perl to be installed on the nagios server.
+| check_file.pl | | | Check if a file exists or is empty.
+| check_file_exists_glob | [GitHub|https://github.com/mclarkson/check_file_exists_glob] | YES | Check for existence or non-existence of a file or files - using glob patterns.
+| check_fs_ro.sh | | | Check that no 'ext' filesystems are in read-only state.
+| check_heartbeat_nodes | [nagios exchange|http://exchange.nagios.org/directory/Plugins/Clustering-and-High-2DAvailability/check_heartbeat_nodes/details] | | Check High Availability status using crm_mon.
+| check_hpasm | [nagios exchange|http://exchange.nagios.org/directory/Plugins/Hardware/Server-Hardware/HP-%28Compaq%29/check_hpasm/details] | YES | Check HP Proliant/Blade health using SNMP/hpasmcli/hpacucli.
+| check_hpasm_noacu | | YES | Same as check_hpasm but with 'HPACUCLI = 0'.
+| check_hp_bladechassis | | YES | Check HP Blade chassis health using SNMP.
+| -check_iftraffic- | | | Phasing out - Don't use
+| -check_iftraffic_nrpe.pl- | | | Phasing out - Don't use
+| -check_iftraffic_nrpe.py- | [nagios exchange|http://exchange.nagios.org/directory/Plugins/Network-Connections%2C-Stats-and-Bandwidth/check_iftraffic_nrpe-2Epy/details] | YES | Phasing out -Finds network interfaces and reports in/out traffic. If running manually use the nagios account since a cache file is written to '/var/tmp'.-
+| check_iftraffic_nrpe.sh | [nagios exchange|http://exchange.nagios.org/directory/Plugins/Network-Connections%2C-Stats-and-Bandwidth/check_iftraffic_nrpe-2Esh/details] | YES | Finds network interfaces and reports in/out traffic.
+| check_ilo2_health.pl | | | HP server check using ILO 2.
+| -check_iostat- | | | -Deleted.-
 | check_jboss | | | This a wrapper around check_jboss.pl that remaps the following chars \\
 \-NNN to <NNN \\
 \+NNN to >NNN \\
 \~NNN to \!NNN \\
-\~SSS to \!"SSS" |
-| check_jboss.pl | | | Check JBOSS using _twiddle_. |
-| check_jmx | [nagios exchange|http://exchange.nagios.org/directory/Plugins/Java-Applications-and-Servers/check_jmx/details] | | Wrapper around a Java JMX checker. |
-| check_logfiles | [Consol Labs|http://labs.consol.de/lang/en/nagios/check_logfiles/] | YES | Check a logfile for a pattern. |
-| check_logfiles_wrapper | | | Setuid binary that is hard coded to execute check_logfiles. |
-| check_memcached | | | |
-| check_mem.pl | [nagios exchange|http://exchange.nagios.org/directory/Plugins/Operating-Systems/Linux/check_mem/details] | | Check memory - RAM and swap. |
-| -check_multi- | | | Phasing out. Don't use. |
-| check_mysql_health | [nagios exchange|http://exchange.nagios.org/directory/MySQL/check_mysql_health/details] | | |
-| check_nagios_config | [nagios exchange|http://exchange.nagios.org/directory/Plugins/Software/check_nagios_config/details] | | Checks the nagios configuration. |
-| -check_netio_1.1- | | | -Deleted.- |
-| check_nfsmounts | [nagios exchange|http://exchange.nagios.org/directory/Plugins/Operating-Systems/Linux/check_nfsmounts/details] | | Check NFS mounts. |
-| check_om_storage.pl | | | Check Dell storage using _openmanage_. |
-| check_openmanage | [nagios exchange|http://exchange.nagios.org/directory/Plugins/Hardware/Server-Hardware/Dell/check_openmanage/details] | | Check Dell hardware using _openmanage_. |
-| check_puppet_log.sh | [nagios exchange|http://exchange.nagios.org/directory/Plugins/Software/check_puppet_log/details] | | Checks the system log for puppet errors. The error status clears once fixed. |
-| check_puppet_version.sh | | | Check the puppet version. |
-| check_puppet_wrapper | | | Setuid binary that is hard coded to execute check_puppet_log.sh |
-| -check_rofs.sh- | | | -Deleted- |
-| -check_snmp_load- | | | Phasing out. Don't use. |
-| -check_snmp_netint.pl- | | | Phasing out. Don't use. |
-| check_sqljob.sh | [nagios exchange|http://exchange.nagios.org/directory/Plugins/Databases/SQLServer/MSSQL-Job-Monitoring/details] | | Microsoft SQL Job check (uses Java). |
-| check_ssl_cert | [nagios exchange|http://exchange.nagios.org/directory/Plugins/Network-Protocols/HTTP/check_ssl_cert/details] | | Check an ssl certificate remotely. Has more options than check_http certificate check if this is required. |
-| check_statusdat_latency | | YES | Checks Nagios server performance. |
-| check_switch_ifs_zeroconf | [nagios exchange|http://exchange.nagios.org/directory/Plugins/Network-Connections%2C-Stats-and-Bandwidth/check_switch_ifs_zeroconf/details] | | Checks Cisco admin/operational status of all interfaces. |
-| check_switch_module | [nagios exchange|http://exchange.nagios.org/directory/Plugins/Network-Connections%2C-Stats-and-Bandwidth/check_switch_module/details] | | Cisco Nexus 7000 series switch module check. |
-| check_switch_psu | [nagios exchange|http://exchange.nagios.org/directory/Plugins/Network-Connections%2C-Stats-and-Bandwidth/check_switch_psu/details] | | Cisco switch PSU check. |
-| check_uptime3 | [nagios exchange|http://exchange.nagios.org/directory/Plugins/System-Metrics/Uptime/check_uptime3/details] | YES | Check system uptime. |
-| -check_uptime.pl- | | | -Deleted- |
-| show_users.sh | | | |
+\~SSS to \!"SSS"
+| check_jboss.pl | | | Check JBOSS using _twiddle_.
+| check_jmx | [nagios exchange|http://exchange.nagios.org/directory/Plugins/Java-Applications-and-Servers/check_jmx/details] | | Wrapper around a Java JMX checker.
+| check_logfiles | [Consol Labs|http://labs.consol.de/lang/en/nagios/check_logfiles/] | YES | Check a logfile for a pattern.
+| check_logfiles_wrapper | | | Setuid binary that is hard coded to execute check_logfiles.
+| check_memcached | | |
+| check_mem.pl | [nagios exchange|http://exchange.nagios.org/directory/Plugins/Operating-Systems/Linux/check_mem/details] | | Check memory - RAM and swap.
+| -check_multi- | | | Phasing out. Don't use.
+| check_mysql_health | [nagios exchange|http://exchange.nagios.org/directory/MySQL/check_mysql_health/details] | |
+| check_nagios_config | [nagios exchange|http://exchange.nagios.org/directory/Plugins/Software/check_nagios_config/details] | | Checks the nagios configuration.
+| -check_netio_1.1- | | | -Deleted.-
+| check_nfsmounts | [nagios exchange|http://exchange.nagios.org/directory/Plugins/Operating-Systems/Linux/check_nfsmounts/details] | | Check NFS mounts.
+| check_om_storage.pl | | | Check Dell storage using _openmanage_.
+| check_openmanage | [nagios exchange|http://exchange.nagios.org/directory/Plugins/Hardware/Server-Hardware/Dell/check_openmanage/details] | | Check Dell hardware using _openmanage_.
+| check_puppet_log.sh | [nagios exchange|http://exchange.nagios.org/directory/Plugins/Software/check_puppet_log/details] | | Checks the system log for puppet errors. The error status clears once fixed.
+| check_puppet_version.sh | | | Check the puppet version.
+| check_puppet_wrapper | | | Setuid binary that is hard coded to execute check_puppet_log.sh
+| -check_rofs.sh- | | | -Deleted-
+| -check_snmp_load- | | | Phasing out. Don't use.
+| -check_snmp_netint.pl- | | | Phasing out. Don't use.
+| check_sqljob.sh | [nagios exchange|http://exchange.nagios.org/directory/Plugins/Databases/SQLServer/MSSQL-Job-Monitoring/details] | | Microsoft SQL Job check (uses Java).
+| check_ssl_cert | [nagios exchange|http://exchange.nagios.org/directory/Plugins/Network-Protocols/HTTP/check_ssl_cert/details] | | Check an ssl certificate remotely. Has more options than check_http certificate check if this is required.
+| check_statusdat_latency | | YES | Checks Nagios server performance.
+| check_switch_ifs_zeroconf | [nagios exchange|http://exchange.nagios.org/directory/Plugins/Network-Connections%2C-Stats-and-Bandwidth/check_switch_ifs_zeroconf/details] | | Checks Cisco admin/operational status of all interfaces.
+| check_switch_module | [nagios exchange|http://exchange.nagios.org/directory/Plugins/Network-Connections%2C-Stats-and-Bandwidth/check_switch_module/details] | | Cisco Nexus 7000 series switch module check.
+| check_switch_psu | [nagios exchange|http://exchange.nagios.org/directory/Plugins/Network-Connections%2C-Stats-and-Bandwidth/check_switch_psu/details] | | Cisco switch PSU check.
+| check_uptime3 | [nagios exchange|http://exchange.nagios.org/directory/Plugins/System-Metrics/Uptime/check_uptime3/details] | YES | Check system uptime.
+| -check_uptime.pl- | | | -Deleted-
+| show_users.sh | | |
 |===========================================================================================================
 
