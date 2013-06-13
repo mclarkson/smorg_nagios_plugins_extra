@@ -1,6 +1,8 @@
 smorg_nagios_plugins_extra
 --------------------------
 
+*Available plugins*
+
 [cols="<,<,^,<",frame="topbot",options="header,autowidth"]
 |===========================================================================================================
 | Plugin Filename | Source | Graphs | Description
@@ -21,12 +23,8 @@ smorg_nagios_plugins_extra
 | check_hpasm | http://exchange.nagios.org/directory/Plugins/Hardware/Server-Hardware/HP-%28Compaq%29/check_hpasm/details[nagios exchange] | YES | Check HP Proliant/Blade health using SNMP/hpasmcli/hpacucli.
 | check_hpasm_noacu | | YES | Same as check_hpasm but with 'HPACUCLI = 0'.
 | check_hp_bladechassis | | YES | Check HP Blade chassis health using SNMP.
-| -check_iftraffic- | | | Phasing out - Don't use
-| -check_iftraffic_nrpe.pl- | | | Phasing out - Don't use
-| -check_iftraffic_nrpe.py- | http://exchange.nagios.org/directory/Plugins/Network-Connections%2C-Stats-and-Bandwidth/check_iftraffic_nrpe-2Epy/details[nagios exchange] | YES | Phasing out -Finds network interfaces and reports in/out traffic. If running manually use the nagios account since a cache file is written to '/var/tmp'.-
 | check_iftraffic_nrpe.sh | http://exchange.nagios.org/directory/Plugins/Network-Connections%2C-Stats-and-Bandwidth/check_iftraffic_nrpe-2Esh/details[nagios exchange] | YES | Finds network interfaces and reports in/out traffic.
 | check_ilo2_health.pl | | | HP server check using ILO 2.
-| -check_iostat- | | | -Deleted.-
 | check_jboss | | | This a wrapper around check_jboss.pl that remaps the following chars \\
 \-NNN to <NNN \\
 \+NNN to >NNN \\
@@ -38,19 +36,14 @@ smorg_nagios_plugins_extra
 | check_logfiles_wrapper | | | Setuid binary that is hard coded to execute check_logfiles.
 | check_memcached | | |
 | check_mem.pl | http://exchange.nagios.org/directory/Plugins/Operating-Systems/Linux/check_mem/details[nagios exchange] | | Check memory - RAM and swap.
-| -check_multi- | | | Phasing out. Don't use.
 | check_mysql_health | http://exchange.nagios.org/directory/MySQL/check_mysql_health/details[nagios exchange] | |
 | check_nagios_config | http://exchange.nagios.org/directory/Plugins/Software/check_nagios_config/details[nagios exchange] | | Checks the nagios configuration.
-| -check_netio_1.1- | | | -Deleted.-
 | check_nfsmounts | http://exchange.nagios.org/directory/Plugins/Operating-Systems/Linux/check_nfsmounts/details[nagios exchange] | | Check NFS mounts.
 | check_om_storage.pl | | | Check Dell storage using _openmanage_.
 | check_openmanage | http://exchange.nagios.org/directory/Plugins/Hardware/Server-Hardware/Dell/check_openmanage/details[nagios exchange] | | Check Dell hardware using _openmanage_.
 | check_puppet_log.sh | http://exchange.nagios.org/directory/Plugins/Software/check_puppet_log/details[nagios exchange] | | Checks the system log for puppet errors. The error status clears once fixed.
 | check_puppet_version.sh | | | Check the puppet version.
 | check_puppet_wrapper | | | Setuid binary that is hard coded to execute check_puppet_log.sh
-| -check_rofs.sh- | | | -Deleted-
-| -check_snmp_load- | | | Phasing out. Don't use.
-| -check_snmp_netint.pl- | | | Phasing out. Don't use.
 | check_sqljob.sh | http://exchange.nagios.org/directory/Plugins/Databases/SQLServer/MSSQL-Job-Monitoring/details[nagios exchange] | | Microsoft SQL Job check (uses Java).
 | check_ssl_cert | http://exchange.nagios.org/directory/Plugins/Network-Protocols/HTTP/check_ssl_cert/details[nagios exchange] | | Check an ssl certificate remotely. Has more options than check_http certificate check if this is required.
 | check_statusdat_latency | | YES | Checks Nagios server performance.
@@ -58,8 +51,21 @@ smorg_nagios_plugins_extra
 | check_switch_module | http://exchange.nagios.org/directory/Plugins/Network-Connections%2C-Stats-and-Bandwidth/check_switch_module/details[nagios exchange] | | Cisco Nexus 7000 series switch module check.
 | check_switch_psu | http://exchange.nagios.org/directory/Plugins/Network-Connections%2C-Stats-and-Bandwidth/check_switch_psu/details[nagios exchange] | | Cisco switch PSU check.
 | check_uptime3 | http://exchange.nagios.org/directory/Plugins/System-Metrics/Uptime/check_uptime3/details[nagios exchange] | YES | Check system uptime.
-| -check_uptime.pl- | | | -Deleted-
 | show_users.sh | | |
 |===========================================================================================================
 
+*Deprecated plugins*
 
+[cols="<,<,^,<",frame="topbot",options="header,autowidth"]
+|===========================================================================================================
+| -check_iftraffic- | | | Phasing out - Don't use
+| -check_iftraffic_nrpe.pl- | | | Phasing out - Don't use
+| -check_iftraffic_nrpe.py- | http://exchange.nagios.org/directory/Plugins/Network-Connections%2C-Stats-and-Bandwidth/check_iftraffic_nrpe-2Epy/details[nagios exchange] | YES | Phasing out -Finds network interfaces and reports in/out traffic. If running manually use the nagios account since a cache file is written to '/var/tmp'.-
+| -check_iostat- | | | -Deleted.-
+| -check_multi- | | | Phasing out. Don't use.
+| -check_netio_1.1- | | | -Deleted.-
+| -check_rofs.sh- | | | -Deleted-
+| -check_snmp_load- | | | Phasing out. Don't use.
+| -check_snmp_netint.pl- | | | Phasing out. Don't use.
+| -check_uptime.pl- | | | -Deleted-
+|===========================================================================================================
