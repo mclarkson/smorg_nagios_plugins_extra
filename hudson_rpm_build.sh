@@ -119,7 +119,8 @@ for PKG in `( cd SPECS; ls *.spec )`; do
 
 	if [[ -d SOURCES/${NAME}-${VERSION} ]]; then
 		echo "Tarring existing source directory."
-        N="${NAME}-${VERSION}-${POINTRELEASE}"
+        #N="${NAME}-${VERSION}-${POINTRELEASE}"
+        N="${NAME}-${VERSION}"
         cp -a SOURCES/${NAME}-${VERSION} SOURCES/$N
 		tar cvzf SOURCES/${N}.tar.gz -C SOURCES ${N} --exclude=.svn
 	else
