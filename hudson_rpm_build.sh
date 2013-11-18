@@ -62,78 +62,78 @@ EOM
 GRV=0
 
 for PKG in `( cd SPECS; ls *.spec )`; do 
-	echo
+    echo
         echo package=$PKG
 
-	if grep -qs "Name: *%" SPECS/${PKG}; then
-		NAME=`grep -m 1 "^Name:" SPECS/${PKG} | sed "s/Name: *//g;s/{//g;s/}//g;s/%//g"`
-		NAME=`grep -E -m1 "(%define|%global) *$NAME" SPECS/${PKG} | awk '{ print $NF; }'`
-	else
-		NAME=`grep -m 1 "^Name:" SPECS/${PKG} | sed "s/Name: *//g"`
-	fi
-	if grep -qs "Version: *%" SPECS/${PKG}; then
-		VERSION=`grep -m 1 "^Version:" SPECS/${PKG} | sed "s/Version: *//g;s/{//g;s/}//g;s/%//g"`
-		VERSION=`grep -E -m1 "(%define|%global) *$VERSION" SPECS/${PKG} | awk '{ print $NF; }'`
-	else
-		VERSION=`grep -m 1 "^Version:" SPECS/${PKG} | sed "s/Version: *//g"`
-	fi
-	if grep -qs "Release: *%" SPECS/${PKG}; then
-		RELEASE=`grep -m 1 "^Release:" SPECS/${PKG} | sed "s/Release: *//g;s/{//g;s/}//g;s/%//g"`
-		RELEASE=`grep -E -m1 "(%define|%global) *$RELEASE" SPECS/${PKG} | awk '{ print $NF; }'`
-	else
-		RELEASE=`grep -m 1 "^Release:" SPECS/${PKG} | sed "s/Release: *//g"`
-	fi
+    if grep -qs "Name: *%" SPECS/${PKG}; then
+        NAME=`grep -m 1 "^Name:" SPECS/${PKG} | sed "s/Name: *//g;s/{//g;s/}//g;s/%//g"`
+        NAME=`grep -E -m1 "(%define|%global) *$NAME" SPECS/${PKG} | awk '{ print $NF; }'`
+    else
+        NAME=`grep -m 1 "^Name:" SPECS/${PKG} | sed "s/Name: *//g"`
+    fi
+    if grep -qs "Version: *%" SPECS/${PKG}; then
+        VERSION=`grep -m 1 "^Version:" SPECS/${PKG} | sed "s/Version: *//g;s/{//g;s/}//g;s/%//g"`
+        VERSION=`grep -E -m1 "(%define|%global) *$VERSION" SPECS/${PKG} | awk '{ print $NF; }'`
+    else
+        VERSION=`grep -m 1 "^Version:" SPECS/${PKG} | sed "s/Version: *//g"`
+    fi
+    if grep -qs "Release: *%" SPECS/${PKG}; then
+        RELEASE=`grep -m 1 "^Release:" SPECS/${PKG} | sed "s/Release: *//g;s/{//g;s/}//g;s/%//g"`
+        RELEASE=`grep -E -m1 "(%define|%global) *$RELEASE" SPECS/${PKG} | awk '{ print $NF; }'`
+    else
+        RELEASE=`grep -m 1 "^Release:" SPECS/${PKG} | sed "s/Release: *//g"`
+    fi
 
-	[[ -z $NAME ]] && {
-		echo "Could not work out the package name from the spec file. Cannot continue"
-		exit 2
-	}
+    [[ -z $NAME ]] && {
+        echo "Could not work out the package name from the spec file. Cannot continue"
+        exit 2
+    }
 
-	echo "Package Name:    $NAME"
+    echo "Package Name:    $NAME"
 
-	[[ -z $VERSION ]] && {
-		echo "Could not work out the version from the spec file. Cannot continue"
-		exit 2
-	}
+    [[ -z $VERSION ]] && {
+        echo "Could not work out the version from the spec file. Cannot continue"
+        exit 2
+    }
 
-	echo "Package Version: $VERSION"
+    echo "Package Version: $VERSION"
 
-	[[ -z $RELEASE ]] && {
-		echo "Could not work out the release from the spec file. Cannot continue"
-		exit 2
-	}
+    [[ -z $RELEASE ]] && {
+        echo "Could not work out the release from the spec file. Cannot continue"
+        exit 2
+    }
 
     #SVN_REV=`svn info SOURCES | sed -n '/Revision:/ { s/Revision: //p }'`
     #
-	#echo "Subversion Revision: $SVN_REV"
+    #echo "Subversion Revision: $SVN_REV"
     #
     #POINTRELEASE=$SVN_REV
 
-	echo "Package Release: $RELEASE"
-	echo "New Version No.: $VERSION-${POINTRELEASE}"
+    echo "Package Release: $RELEASE"
+    echo "New Version No.: $VERSION-${POINTRELEASE}"
 
     sed "s/^Release: .*/Release: ${POINTRELEASE}/g" \
     ${BASE}/SPECS/${PKG} > ${BASE}/TMP/${PKG}
 
     echo "Preparing sources for '${NAME}-${VERSION}'..."
 
-	if [[ -d SOURCES/${NAME}-${VERSION} ]]; then
-		echo "Tarring existing source directory."
+    if [[ -d SOURCES/${NAME}-${VERSION} ]]; then
+        echo "Tarring existing source directory."
         #N="${NAME}-${VERSION}-${POINTRELEASE}"
         N="${NAME}-${VERSION}"
-        cp -a SOURCES/${NAME}-${VERSION} SOURCES/$N
-		tar cvzf SOURCES/${N}.tar.gz -C SOURCES ${N} --exclude=.svn
-	else
-		echo "Unpacking source tarball."
-		tar -C TMP/ -xvzf SOURCES/${NAME}-${VERSION}.tar.gz
+        #cp -a SOURCES/${NAME}-${VERSION} SOURCES/$N
+        tar cvzf SOURCES/${N}.tar.gz -C SOURCES ${N} --exclude=.svn
+    else
+        echo "Unpacking source tarball."
+        tar -C TMP/ -xvzf SOURCES/${NAME}-${VERSION}.tar.gz
 
-		[[ -e TMP/${NAME}-${VERSION} ]] || {
-			echo "Tar file did not unpack into '${NAME}-${VERSION}'"
-			echo "The tar file is invalid. Cannot continue."
-			exit 1
-		}
-	fi
-	echo
+        [[ -e TMP/${NAME}-${VERSION} ]] || {
+            echo "Tar file did not unpack into '${NAME}-${VERSION}'"
+            echo "The tar file is invalid. Cannot continue."
+            exit 1
+        }
+    fi
+    echo
 
 #        cp -pR SOURCES/${NAME}-${VERSION}.tar.gz TMP/${NAME}-${VERSION}
 #
