@@ -79,7 +79,7 @@ main()
     parse_options
 
     retval=$NAGOK
-    fs=`grep '^.* .* ext.* .*ro' /proc/mounts`
+    fs=`grep '^.* .* ext.* .*ro(,|$| )' /proc/mounts`
 
     if [[ -n $fs ]]; then
         rofs=`echo $fs | awk '{ print $1; }'`
