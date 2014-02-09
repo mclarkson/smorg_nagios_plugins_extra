@@ -80,6 +80,7 @@ install -m 755 check_puppet_version.sh ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/
 install -m 755 check_sqljob.sh ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_sqljob.sh
 install -m 755 check_ssl_cert ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_ssl_cert
 install -m 755 check_statusdat_latency ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_statusdat_latency
+install -m 755 check_swap_activity ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_swap_activity
 #install -m 755 check_uptime.pl ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_uptime.pl
 install -m 755 check_uptime3 ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_uptime3
 install -m 755 get_stats_memcache ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/get_stats_memcache
@@ -159,6 +160,7 @@ install -m 755 check_switch_psu ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_s
 %_libdir/nagios/plugins/check_iftraffic
 %_libdir/nagios/plugins/check_snmp_load
 %_libdir/nagios/plugins/check_snmp_netint.pl
+%_libdir/nagios/plugins/check_swap_activity
 %_libdir/nagios/plugins/check_switch_ifs_zeroconf
 %_libdir/nagios/plugins/check_switch_module
 %_libdir/nagios/plugins/check_switch_psu
@@ -168,6 +170,8 @@ install -m 755 check_switch_psu ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_s
 %{__rm} -rf %{buildroot}
 
 %changelog
+* Wed Jan 09 2014 Mark Clarkson <mark.clarkson@smorg.co.uk>
+- Added check_swap_activity.
 * Wed May 22 2013 Mark Clarkson <mark.clarkson@smorg.co.uk>
 - Added check_file_exists_glob.
 * Tue May 14 2013 Mark Clarkson <mark.clarkson@smorg.co.uk>

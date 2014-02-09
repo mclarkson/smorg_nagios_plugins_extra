@@ -2,13 +2,15 @@
 # Copyright(C) 2013 Mark Clarkson <mark.clarkson@smorg.co.uk>
 #
 #    This software is provided under the terms of the GNU
-#    General Public License (GPL), as published at: 
+#    General Public License (GPL), as published at:
 #    http://www.gnu.org/licenses/gpl.html .
 #
 # File:     check_nagios_config
 # Date:     26 Apr 2013
-# Version:  0.10
-# Modified:
+# Version:  0.11
+# Modified: 
+#           abooitt 29 Nov 2013
+#             Handle errors and warnings before preflight check.
 #
 # Purpose:  Check the nagios.cfg file using 'nagios -v'.
 #
@@ -33,7 +35,7 @@ ME="$0"
 CMDLINE="$@"
 TRUE=1
 FALSE=0
-VERSION="0.10"
+VERSION="0.11"
 OK=0
 WARN=1
 CRIT=2
@@ -41,6 +43,7 @@ UNKN=3
 
 CHROOTBASE=
 USESUDO=0
+LONGOUTPUT=0
 WITHPERF=0
 SUDO="sudo "
 
@@ -63,7 +66,7 @@ main()
 
     sanity_checks
 
-    # Fill in the stats variables 
+    # Fill in the stats variables
     do_check
 
     txt="OK:"
@@ -79,7 +82,9 @@ main()
         out="$out num_hosts=$NHSTS num_services=$NSVCS"
     }
 
-    echo "$out"
+    [[ $LONGOUTPUT -eq 1 ]] && out="$out\n$LONGO"
+
+    echo -e "$out"
 
     exit $retval
 }
@@ -106,7 +111,7 @@ sanity_checks()
     [[ -n $CHROOTBASE ]] && {
         # Exiting with error status 254 is good - it ran ok!
         $SUDO$CHROOT $CHROOTBASE $NAGIOSBIN -h >& /dev/null
-	[[ $? -ne 254 ]] && {
+        [[ $? -ne 254 ]] && {
             echo "Problem running nagios in the chroot. Aborting"
             exit $UNKN
         }
@@ -130,6 +135,7 @@ usage()
     echo "            (Default is: $CHROOT)"
     echo " -s      :  Use sudo to run the command."
     echo " -p      :  Add performance data output for graphing."
+    echo " -l      :  Add long output excluding the lines starting with 'Processing'."
     echo " -W NUM  :  Don't alert until NUM warnings have been reached."
     echo "            (Default is: $WARNLVL)"
     echo " -C NUM  :  Don't alert until NUM errors have been reached."
@@ -160,6 +166,23 @@ do_check()
     NHSTS=`grep -o "Checked [0-9]\+ hosts" $F | ( read a b c d; echo $b )`
     NWARN=`grep -o "Total Warnings: *[0-9]\+" $F | ( read a b c d; echo $c )`
     NERRS=`grep -o "Total Errors: *[0-9]\+" $F | ( read a b c d; echo $c )`
+    LONGO=`grep -v '^Processing' $F`
+
+    if [[ -z "$NSVCS" ]]; then
+        NSVCS=0
+    fi
+
+    if [[ -z "$NHSTS" ]]; then
+        NHSTS=0
+    fi
+
+    if [[ -z "$NWARN" ]]; then
+        NWARN=`grep -c 'Warning: ' $F`
+    fi
+
+    if [[ -z "$NERRS" ]]; then
+        NERRS=`grep -c 'Error: ' $F`
+    fi
 
     rm $F
 }
@@ -184,6 +207,8 @@ parse_options()
             -x) CHROOTBASE="$2" ; shift
                 # Append '/' if not already appended
                 CHROOTBASE="${CHROOTBASE%/}${CHROOTBASE:+/}"
+            ;;
+            -l) LONGOUTPUT=1
             ;;
             -s) USESUDO=1
             ;;
