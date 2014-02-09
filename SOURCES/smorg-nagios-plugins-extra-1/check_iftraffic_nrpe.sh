@@ -7,16 +7,15 @@
 #
 # File: check_iftraffic_nrpe.sh
 # Date: 14 May 2013
-# Version: 0.10
-# Modified:
+# Version: 0.11
+# Modified: 09 Feb 2014 (Mark Clarkson)
+#           Added check for negative bandwidth.
 #
 # Purpose: Check and stat a number of network interfaces.
 #
 # Notes:
 #
 
-# TODO REMOVE DEBUG
-START="`date`"
 
 # ---------------------------------------------------------------------------
 # DEFAULTS (Change as necessary)
@@ -33,7 +32,7 @@ ME="$0"
 CMDLINE="$@"
 TRUE=1
 FALSE=0
-VERSION="0.10"
+VERSION="0.11"
 OK=0
 WARN=1
 CRIT=2
@@ -354,7 +353,6 @@ read_iflist_stats_from_file()
 # ---------------------------------------------------------------------------
 write_iflist_stats_to_file()
 # ---------------------------------------------------------------------------
-# $1 - Cache file location
 {
     local rx tx t time=`date +%s`
 
@@ -366,7 +364,7 @@ write_iflist_stats_to_file()
         t+="${IFL[i]} $rx $tx $time\n"
     done
 
-    printf "$t" >$1
+    printf "$t" >$IFCACHE
 }
 
 # ---------------------------------------------------------------------------
@@ -383,7 +381,7 @@ do_check()
     if [[ -e $IFCACHE ]]; then
         read_iflist_stats_from_file
     else
-        write_iflist_stats_to_file $IFCACHE
+        write_iflist_stats_to_file
         echo "OK: Got first data sample."
         exit $OK
     fi
@@ -396,7 +394,7 @@ do_check()
         [[ ${IFshow[i]} -ne $INCLUDE ]] && continue
         [[ ${IFL[i]} != ${IFLL[i]} ]] && {
             # Something has changed. Pretend this is the first time again.
-            write_iflist_stats_to_file $IFCACHE
+            write_iflist_stats_to_file
             echo "WARNING: Interfaces changed. Got first sample, again."
             exit $WARN
         }
@@ -407,11 +405,6 @@ do_check()
         deltats=$((now-${ts[i]}))
         [[ $deltats -le 0 ]] && {
             echo "UNKNOWN: Invalid time delta ($deltats). Aborting."
-            echo "TIME START: $START" >/var/tmp/check_iftraffic.err
-            echo -e "TIME END  : `date`\n" >>/var/tmp/check_iftraffic.err
-            ps -ef >>/var/tmp/check_iftraffic.err
-            cp $IFCACHE $IFCACHE.errold
-            write_iflist_stats_to_file $IFCACHE.errnew
             exit $UNKN
         }
         # Bytes per second (perf output)
@@ -455,13 +448,20 @@ do_check()
         }
     done
 
+    # Check for negative value. Happens after reboot or rollover.
+    [[ $Bpstx -le 0 || $Bpsrx -le 0 ]] && {
+        write_iflist_stats_to_file
+        echo "OK: Got first data sample."
+        exit $OK
+    }
+
     if [[ $USEBYTES -eq 0 ]]; then
         MESSAGE+="(in/out in bits/s)"
     else
         MESSAGE+="(in/out in bytes/s)"
     fi
 
-    write_iflist_stats_to_file $IFCACHE
+    write_iflist_stats_to_file
 }
 
 # ----------------------------------------------------------------------------
