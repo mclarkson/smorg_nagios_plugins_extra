@@ -54,8 +54,8 @@ install -m 755 check_heartbeat_nodes ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/ch
 install -m 755 check_hp_bladechassis ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_hp_bladechassis
 install -m 755 check_hpasm ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_hpasm
 install -m 755 check_hpasm_noacu ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_hpasm_noacu
-install -m 755 check_iftraffic_nrpe.pl ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_iftraffic_nrpe.pl
-install -m 755 check_iftraffic_nrpe.py ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_iftraffic_nrpe.py
+#install -m 755 check_iftraffic_nrpe.pl ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_iftraffic_nrpe.pl
+#install -m 755 check_iftraffic_nrpe.py ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_iftraffic_nrpe.py
 install -m 755 check_iftraffic_nrpe.sh ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_iftraffic_nrpe.sh
 install -m 755 check_ilo2_health.pl ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_ilo2_health.pl
 #install -m 755 check_iostat ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_iostat
@@ -66,7 +66,7 @@ install -m 755 check_jmx.sh ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_jmx.s
 install -m 755 check_logfiles ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_logfiles
 install -m 755 check_mem.pl ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_mem.pl
 install -m 755 check_memcached ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_memcached
-install -m 755 check_multi ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_multi
+#install -m 755 check_multi ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_multi
 install -m 755 check_mysql_health ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_mysql_health
 install -m 755 check_nagios_config ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_nagios_config
 #install -m 755 check_netio.ncfg ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_netio.ncfg
@@ -92,9 +92,9 @@ install -m 755 url.properties ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/url.prope
 install -m 755 check_cisco_nexus_cpu.pl ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_cisco_nexus_cpu.pl
 install -m 755 check_cisco_nexus_hardware.pl ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_cisco_nexus_hardware.pl
 install -m 755 check_cisco_snmp.pl ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_cisco_snmp.pl
-install -m 755 check_iftraffic ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_iftraffic
-install -m 755 check_snmp_load ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_snmp_load
-install -m 755 check_snmp_netint.pl ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_snmp_netint.pl
+#install -m 755 check_iftraffic ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_iftraffic
+#install -m 755 check_snmp_load ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_snmp_load
+#install -m 755 check_snmp_netint.pl ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_snmp_netint.pl
 install -m 755 check_switch_ifs_zeroconf ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_switch_ifs_zeroconf
 install -m 755 check_switch_module ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_switch_module
 install -m 755 check_switch_psu ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_switch_psu
@@ -121,8 +121,8 @@ install -m 755 check_switch_psu ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_s
 %_libdir/nagios/plugins/check_hp_bladechassis
 %_libdir/nagios/plugins/check_hpasm
 %_libdir/nagios/plugins/check_hpasm_noacu
-%_libdir/nagios/plugins/check_iftraffic_nrpe.pl
-%_libdir/nagios/plugins/check_iftraffic_nrpe.py
+#%_libdir/nagios/plugins/check_iftraffic_nrpe.pl
+#%_libdir/nagios/plugins/check_iftraffic_nrpe.py
 %_libdir/nagios/plugins/check_iftraffic_nrpe.sh
 %_libdir/nagios/plugins/check_ilo2_health.pl
 #%_libdir/nagios/plugins/check_iostat
@@ -133,7 +133,7 @@ install -m 755 check_switch_psu ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_s
 %_libdir/nagios/plugins/check_logfiles
 %_libdir/nagios/plugins/check_mem.pl
 %_libdir/nagios/plugins/check_memcached
-%_libdir/nagios/plugins/check_multi
+#%_libdir/nagios/plugins/check_multi
 %_libdir/nagios/plugins/check_mysql_health
 %_libdir/nagios/plugins/check_nagios_config
 #%_libdir/nagios/plugins/check_netio.ncfg
@@ -157,9 +157,9 @@ install -m 755 check_switch_psu ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_s
 %_libdir/nagios/plugins/check_cisco_nexus_cpu.pl
 %_libdir/nagios/plugins/check_cisco_nexus_hardware.pl
 %_libdir/nagios/plugins/check_cisco_snmp.pl
-%_libdir/nagios/plugins/check_iftraffic
-%_libdir/nagios/plugins/check_snmp_load
-%_libdir/nagios/plugins/check_snmp_netint.pl
+#%_libdir/nagios/plugins/check_iftraffic
+#%_libdir/nagios/plugins/check_snmp_load
+#%_libdir/nagios/plugins/check_snmp_netint.pl
 %_libdir/nagios/plugins/check_swap_activity
 %_libdir/nagios/plugins/check_switch_ifs_zeroconf
 %_libdir/nagios/plugins/check_switch_module

@@ -55,14 +55,14 @@ smorg_nagios_plugins_extra
 [cols="<,<,^,<",frame="topbot",options="header,autowidth"]
 |===========================================================================================================
 | Plugin Filename | Source | Graphs | Description
-| check_iftraffic | | | Phasing out - Don't use
-| check_iftraffic_nrpe.pl | | | Phasing out - Don't use
-| check_iftraffic_nrpe.py | http://exchange.nagios.org/directory/Plugins/Network-Connections%2C-Stats-and-Bandwidth/check_iftraffic_nrpe-2Epy/details[nagios exchange] | YES | Phasing out -Finds network interfaces and reports in/out traffic. If running manually use the nagios account since a cache file is written to '/var/tmp'.-
-| check_iostat | | | -Deleted.-
-| check_multi | | | Phasing out. Don't use.
-| check_netio_1.1 | | | -Deleted.-
-| check_rofs.sh | | | -Deleted-
-| check_snmp_load | | | Phasing out. Don't use.
-| check_snmp_netint.pl | | | Phasing out. Don't use.
-| check_uptime.pl | | | -Deleted-
+| check_iftraffic | | | Deleted.
+| check_iftraffic_nrpe.pl | | | Deleted.
+| check_iftraffic_nrpe.py | | | Deleted.
+| check_iostat | | | Deleted.
+| check_multi | | | Deleted.
+| check_netio_1.1 | | | Deleted.
+| check_rofs.sh | | | Deleted
+| check_snmp_load | | | Deleted
+| check_snmp_netint.pl | | | Deleted
+| check_uptime.pl | | | Deleted
 |===========================================================================================================
