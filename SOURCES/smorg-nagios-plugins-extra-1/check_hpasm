@@ -72,6 +72,14 @@ sub add_message {
   push @{$self->{messages}->{$code}}, @messages;
 }
 
+sub remove_message {
+  my $self = shift;
+  my ($code, @messages) = @_;
+  $code = (qw(ok warning critical unknown))[$code] if $code =~ /^\d+$/;
+  $code = lc $code;
+  pop @{$self->{messages}->{$code}};
+}
+
 sub add_perfdata {
   my ($self, %args) = @_;
   my $str = $args{label}.'='.$args{value};
@@ -172,7 +180,7 @@ use Getopt::Long qw(:config no_ignore_case bundling);
 
 # Standard defaults
 my %DEFAULT = (
-  timeout => 15,
+  timeout => 60,
   verbose => 0,
   license =>
 "This nagios plugin is free software, and comes with ABSOLUTELY NO WARRANTY.
@@ -428,6 +436,541 @@ use strict;
 
 }
 
+package HP::Proliant::Component::EventSubsystem;
+our @ISA = qw(HP::Proliant::Component);
+
+use strict;
+use constant { OK => 0, WARNING => 1, CRITICAL => 2, UNKNOWN => 3 };
+
+sub new {
+  my $class = shift;
+  my %params = @_;
+  my $self = {
+    runtime => $params{runtime},
+    rawdata => $params{rawdata},
+    method => $params{method},
+    condition => $params{condition},
+    status => $params{status},
+    events => [],
+    blacklisted => 0,
+    info => undef,
+    extendedinfo => undef,
+    boottime => 0,
+  };
+  bless $self, $class;
+  if ($self->{method} eq 'snmp') {
+    $self = HP::Proliant::Component::EventSubsystem::SNMP->new(%params);
+    my $sysUpTime = SNMP::Utils::get_object(
+        $self->{rawdata}, '1.3.6.1.2.1.1.3.0') || 3600*24*100;
+    $self->{boottime} = int(time - $sysUpTime / 100);
+  } elsif ($self->{method} eq 'cli') {
+    $self = HP::Proliant::Component::EventSubsystem::CLI->new(%params);
+    my $uptime = do { local (@ARGV, $/) = "/proc/uptime"; my $x = <>; close ARGV; $x };
+    # also watch 10 minutes of booting before the operating system starts ticking
+    $self->{boottime} = time - int((split(/\s+/, $uptime))[0]) - 600;
+  } else {
+    die "unknown method";
+  }
+  # repair dates
+  my $lasttime = 0;
+  for my $event (reverse @{$self->{events}}) {
+    if ($event->{cpqHeEventLogUpdateTime} != 0) {
+      $lasttime = $event->{cpqHeEventLogUpdateTime};
+    } else {
+      $event->{cpqHeEventLogUpdateTime} = $lasttime;
+    }
+  }
+  # maybe the most recent events had zero timestamps.
+  # fill them up with timestamps from the past.
+  for my $event (@{$self->{events}}) {
+    if ($event->{cpqHeEventLogUpdateTime} != 0) {
+      $lasttime = $event->{cpqHeEventLogUpdateTime};
+    } else {
+      $event->{cpqHeEventLogUpdateTime} = $lasttime;
+    }
+  }
+  # we need the boottime in the event's check method
+  for my $event (@{$self->{events}}) {
+    $event->{boottime} = $self->{boottime};
+  }
+  return $self;
+}
+
+sub check {
+  my $self = shift;
+  my $errorfound = 0;
+  $self->add_info('checking events');
+  if (scalar (@{$self->{events}}) == 0) {
+    #$self->overall_check(); 
+    $self->add_info('no events found');
+  } else {
+    foreach (sort { $a->{cpqHeEventLogEntryNumber} <=> $b->{cpqHeEventLogEntryNumber}}
+        @{$self->{events}}) {
+      $_->check($self->{warningtime}, $self->{criticaltime});
+    }
+  }
+}
+
+sub dump {
+  my $self = shift;
+  foreach (sort { $a->{cpqHeEventLogEntryNumber} <=> $b->{cpqHeEventLogEntryNumber} } @{$self->{events}}) {
+    $_->dump();
+  }
+}
+
+
+package HP::Proliant::Component::EventSubsystem::Event;
+our @ISA = qw(HP::Proliant::Component::EventSubsystem);
+
+use strict;
+use constant { OK => 0, WARNING => 1, CRITICAL => 2, UNKNOWN => 3 };
+
+{
+  our $interesting_events = {
+    # POST Error: 201-Memory Error Multi-bit error occurred during memory initialization, Board 1, Bank B. Bank containing DIMM(s) has been disabled..
+    # POST Error: 201-Memory Error Single-bit error occured during memory initialization, Board 1, DIMM 1. Bank containing DIMM(s) has been disabled..
+    # POST Error: 207-Memory initialization error on Memory Board 5 DIMM 7. The operating system may not have access to all of the memory installed in the system..
+    # POST Error: 207-Invalid Memory Configuration-Mismatched DIMMs within DIMM Bank Memory in Bank A Not Utilized..  
+    # POST Error: 210 - Quick Path Interconnect (QPI) Link Degradation. A QPI link is operating in a degraded performace state..
+    'POST Messages' => [
+      '201-Memory', '207-Memory',
+      '210\s*-\s*Quick Path Interconnect.*degraded.*'
+    ],
+    'Main Memory' => [
+      'Corrected Memory Error threshold exceeded',
+      'Uncorrectable Memory Error',
+    ],
+  };
+}
+
+sub new {
+  my $class = shift;
+  my %params = @_;
+  my $self = {
+    runtime => $params{runtime},
+    cpqHeEventLogEntryNumber => $params{cpqHeEventLogEntryNumber},
+    cpqHeEventLogEntrySeverity => lc $params{cpqHeEventLogEntrySeverity},
+    cpqHeEventLogEntryClass => $params{cpqHeEventLogEntryClass},
+    cpqHeEventLogEntryCount => $params{cpqHeEventLogEntryCount} || 1,
+    cpqHeEventLogInitialTime => $params{cpqHeEventLogInitialTime},
+    cpqHeEventLogUpdateTime => $params{cpqHeEventLogUpdateTime},
+    cpqHeEventLogErrorDesc => $params{cpqHeEventLogErrorDesc},
+    blacklisted => 0,
+    info => undef,
+    extendedinfo => undef,
+  };
+  if (! $self->{cpqHeEventLogInitialTime}) {
+    $self->{cpqHeEventLogInitialTime} = $self->{cpqHeEventLogUpdateTime};
+  }
+  # 
+  #
+  #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+  #                      |warn                 |crit                          |now
+  #
+  #<----- ignore -------><----- warning ------><---------- critical --------->
+  #
+  # If we have --eventrange <warnlookback>/<critlookback>
+  #  Very young events are shown as critical
+  #  If the event gets older, it is shown as warning
+  #  At some time, the event is no longer shown
+  # Without --eventrange the event is shown as critical until you manually repair it
+  if ($params{runtime}->{options}->{eventrange}) {
+    my ($warningrange, $criticalrange) = split(/\//, $params{runtime}->{options}->{eventrange});
+    if (! $criticalrange) {
+      $criticalrange = $warningrange;
+    }
+    if ($criticalrange =~ /^(\d+)[s]*$/) {
+      $criticalrange = $1;
+    } elsif ($criticalrange =~ /^(\d+)m$/) {
+      $criticalrange = $1 * 60;
+    } elsif ($criticalrange =~ /^(\d+)h$/) {
+      $criticalrange = $1 * 3600;
+    } elsif ($criticalrange =~ /^(\d+)d$/) {
+      $criticalrange = $1 * 3600 * 24;
+    } else {
+      die "range has to be <number>[smhd]";
+    }
+    if ($warningrange =~ /^(\d+)[s]*$/) {
+      $warningrange = $1;
+    } elsif ($warningrange =~ /^(\d+)m$/) {
+      $warningrange = $1 * 60;
+    } elsif ($warningrange =~ /^(\d+)h$/) {
+      $warningrange = $1 * 3600;
+    } elsif ($warningrange =~ /^(\d+)d$/) {
+      $warningrange = $1 * 3600 * 24;
+    } else {
+      die "range has to be <number>[smhd]";
+    }
+    $self->{warningtime} = time - $warningrange;
+    $self->{criticaltime} = time - $criticalrange;
+  } else {
+    $self->{warningtime} = 0;
+    $self->{criticaltime} = 0;
+  }
+  bless $self, $class;
+  return $self;
+}
+
+sub check {
+  my $self = shift;
+  $self->blacklist('evt', $self->{cpqHeEventLogEntryNumber});
+  # only check severity "critical" and "caution"
+  # optional: only check interesting events
+  # POST events only if they date maximum from reboot-5min
+  # younger than critical? -> critical
+  # 
+  $self->add_info(sprintf "Event: %d Added: %s Class: (%s) %s %s",
+      $self->{cpqHeEventLogEntryNumber},
+      $self->{cpqHeEventLogUpdateTime},
+      $self->{cpqHeEventLogEntryClass},
+      $self->{cpqHeEventLogEntrySeverity},
+      $self->{cpqHeEventLogErrorDesc});
+  if ($self->{cpqHeEventLogEntrySeverity} eq "caution" ||
+      $self->{cpqHeEventLogEntrySeverity} eq "critical") {
+    # also watch 10 minutes of booting before the operating system starts ticking
+    if ($self->{cpqHeEventLogUpdateTime} >= $self->{boottime}) {
+      foreach my $class (keys %{$HP::Proliant::Component::EventSubsystem::Event::interesting_events}) {
+        foreach my $pattern (@{$HP::Proliant::Component::EventSubsystem::Event::interesting_events->{$class}}) {
+          if ($self->{cpqHeEventLogErrorDesc} =~ /$pattern/) {
+            if ($self->{cpqHeEventLogUpdateTime} < $self->{warningtime}) {
+              # you didn't care for this problem too long.
+              # don't say i didn't warn you.
+              if (0) {
+                # auto-ack?
+              } 
+              last;
+            } elsif ($self->{cpqHeEventLogUpdateTime} < $self->{criticaltime}) {
+              $self->add_message(WARNING, $self->{info});
+              last;
+            } else {
+              $self->add_message(CRITICAL, $self->{info});
+              last;
+            }
+          }
+        }
+      }
+    }
+  } else {
+    # info, repair...
+  }
+}
+
+sub dump { 
+  my $self = shift;
+  printf "[EVENT_%s]\n", $self->{cpqHeEventLogEntryNumber};
+  foreach (qw(cpqHeEventLogEntryNumber cpqHeEventLogEntrySeverity
+      cpqHeEventLogEntryCount cpqHeEventLogInitialTime
+      cpqHeEventLogUpdateTime cpqHeEventLogErrorDesc)) {
+    if ($_ =~ /.*Time$/) {
+      printf "%s: %s\n", $_, scalar localtime $self->{$_};
+    } else {
+      printf "%s: %s\n", $_, $self->{$_};
+    }
+  }
+  printf "info: %s\n\n", $self->{info};
+}
+
+
+
+package HP::Proliant::Component::EventSubsystem::CLI;
+our @ISA = qw(HP::Proliant::Component::EventSubsystem);
+
+use strict;
+use constant { OK => 0, WARNING => 1, CRITICAL => 2, UNKNOWN => 3 };
+use Time::Local;
+
+sub new {
+  my $class = shift;
+  my %params = @_;
+  my $self = {
+    runtime => $params{runtime},
+    rawdata => $params{rawdata},
+    events => [],
+    blacklisted => 0,
+    info => undef,
+    extendedinfo => undef,
+  };
+  bless $self, $class;
+  $self->init(%params);
+  return $self;
+}
+
+
+sub init {
+  my $self = shift;
+  my %params = @_;
+  my %tmpevent = (
+    runtime => $params{runtime},
+  );
+  my $inblock = 0;
+  foreach (grep(/^iml/, split(/\n/, $self->{rawdata}))) {
+    s/^iml\s*//g;
+    if (/^Event:\s+(\d+)\s+[\w]+:\s+(\d+)\/(\d+)\/(\d+)\s+(\d+):(\d+)/) {
+      # Event: 31 Added: 09/22/2011 05:11
+      #         1         2  3    4  5  6
+      $tmpevent{cpqHeEventLogEntryNumber} = $1;
+      if ($4 == 0) {
+        # Event: 29 Added: 00/00/0000 00:00
+        $tmpevent{cpqHeEventLogUpdateTime} = 0;
+      } else {
+        eval {
+          $tmpevent{cpqHeEventLogUpdateTime} = timelocal(0, $6, $5, $3, $2 - 1, $4);
+        };
+        if ($@) {
+          # Event: 10 Added: 27/27/2027 27:27
+          $tmpevent{cpqHeEventLogUpdateTime} = 0;
+        }
+      }
+      $inblock = 1;
+    } elsif (/^(\w+):\s+(.*?)\s+\-\s+(.*)/) {
+      $tmpevent{cpqHeEventLogEntrySeverity} = $1;
+      $tmpevent{cpqHeEventLogEntryClass} = $2;
+      $tmpevent{cpqHeEventLogErrorDesc} = $3;
+      if ($tmpevent{cpqHeEventLogErrorDesc} =~ /.*?:\s+(\d+)/) {
+          $tmpevent{cpqHeEventLogEntryCode} = $1;
+      } else {
+          $tmpevent{cpqHeEventLogEntryCode} = 0;
+      }
+    } elsif (/^\s*$/) {
+      if ($inblock) {
+        $inblock = 0;
+        push(@{$self->{events}},
+            HP::Proliant::Component::EventSubsystem::Event->new(%tmpevent));
+        %tmpevent = (
+          runtime => $params{runtime},
+        );
+      }
+    }
+  }
+  if ($inblock) {
+    push(@{$self->{events}},
+        HP::Proliant::Component::EventSubsystem::Event->new(%tmpevent));
+  }
+}
+
+
+
+package HP::Proliant::Component::EventSubsystem::SNMP;
+our @ISA = qw(HP::Proliant::Component::EventSubsystem
+    HP::Proliant::Component::SNMP);
+
+use strict;
+use constant { OK => 0, WARNING => 1, CRITICAL => 2, UNKNOWN => 3 };
+use Time::Local;
+
+sub new {
+  my $class = shift;
+  my %params = @_;
+  my $self = {
+    runtime => $params{runtime},
+    rawdata => $params{rawdata},
+    events => [],
+    blacklisted => 0,
+    info => undef,
+    extendedinfo => undef,
+  };
+  bless $self, $class;
+  $self->overall_init(%params);
+  $self->init(%params);
+  return $self;
+}
+
+sub overall_init {
+  my $self = shift;
+  my %params = @_;
+  my $snmpwalk = $params{rawdata};
+  # overall
+  my $cpqHeEventLogSupported  = '1.3.6.1.4.1.232.6.2.11.1.0';
+  my $cpqHeEventLogSupportedValue = {
+    1 => 'other',
+    2 => 'notSupported',
+    3 => 'supported',
+    4 => 'clear',
+  };
+  my $cpqHeEventLogCondition  = '1.3.6.1.4.1.232.6.2.11.2.0';
+  my $cpqHeEventLogConditionValue = {
+    1 => 'other',
+    2 => 'ok',
+    3 => 'degraded',
+    4 => 'failed',
+  };
+  $self->{eventsupp} = SNMP::Utils::get_object_value(
+      $snmpwalk, $cpqHeEventLogSupported,
+      $cpqHeEventLogSupportedValue);
+  $self->{eventstatus} = SNMP::Utils::get_object_value(
+      $snmpwalk, $cpqHeEventLogCondition,
+      $cpqHeEventLogConditionValue);
+  $self->{eventsupp} |= lc $self->{eventsupp};
+  $self->{eventstatus} |= lc $self->{eventstatus};
+}
+
+sub init {
+  my $self = shift;
+  my %params = @_;
+  my $snmpwalk = $self->{rawdata};
+  my $oids = {
+      cpqHeEventLogEntry => "1.3.6.1.4.1.232.6.2.11.3.1",
+      cpqHeEventLogEntryNumber => "1.3.6.1.4.1.232.6.2.11.3.1.1",
+      cpqHeEventLogEntrySeverity => "1.3.6.1.4.1.232.6.2.11.3.1.2",
+      cpqHeEventLogEntryClass => "1.3.6.1.4.1.232.6.2.11.3.1.3",
+      cpqHeEventLogEntryCode => "1.3.6.1.4.1.232.6.2.11.3.1.4",
+      cpqHeEventLogEntryCount => "1.3.6.1.4.1.232.6.2.11.3.1.5",
+      cpqHeEventLogInitialTime => "1.3.6.1.4.1.232.6.2.11.3.1.6",
+      cpqHeEventLogUpdateTime => "1.3.6.1.4.1.232.6.2.11.3.1.7",
+      cpqHeEventLogErrorDesc => "1.3.6.1.4.1.232.6.2.11.3.1.8",
+
+      cpqHeEventLogEntryClassValue => {
+          #  2 Fan Failure (Fan 1, Location I/O Board)
+          #    Internal Storage System Overheating (Slot 0, Zone 1, Location Storage, Temperature Unknown)
+          #    System Fans Not Redundant (Location I/O Board)
+          #  MY MUSTARD: only critical events should lead to an alert, if at all. The caution events mean "loss of redundancy".
+          #              We monitor temperatures and fan status anyway.
+          #2 => "",
+          #  3 Corrected Memory Error threshold exceeded (System Memory, Memory Module 1)
+          #    Uncorrectable Memory Error detected by ROM-based memory validation (Board 1, Memory Module 4)
+          #  MY MUSTARD: threshold exceeded is caution. Uncorrectable errors are critical. Both should be detected anyway.
+          3 => "Main Memory",
+          #  4 Accelerator Cache Memory Parity Error (Socket 1)
+          #4 => "",
+          #  5 Processor Correctable error threshold exceeded (Board 0, Processor 2)
+          #5 => "",
+          #  6 Unrecoverable Intermodule Bus error (Error code 0x00000000)
+          #6 => "",
+          #  8 PCI Bus Error (Slot 0, Bus 0, Device 0, Function 0)
+          8 => "PCI Bus",
+          # 10 1720-S.M.A.R.T. Hard Drive Detects Imminent Failure
+          #    POST Error: 201-Memory Error Multi-bit error occurred during memory initialization, Board 1, Bank B. Bank containing DIMM(s) has been disabled..
+          #    POST Error: 201-Memory Error Single-bit error occured during memory initialization, Board 1, DIMM 1. Bank containing DIMM(s) has been disabled..
+          #    POST Error: 207-Memory Configuration Warning - memory boards should be installed sequentially.
+          #    POST Error: 210-Memory Board Failure on board 4.
+          #    POST Error: 210-Memory Board Power Fault on board 3.
+          #    POST Error: 207-Memory initialization error on Memory Board 5 DIMM 7. The operating system may not have access to all of the memory installed in the system..         
+          #    POST Error: 207-Invalid Memory Configuration-Mismatched DIMMs within DIMM Bank Memory in Bank A Not Utilized..
+          10 => "POST Messages",
+          11 => "Power Subsystem",
+          13 => "ASR",
+          # 14 Automatic Operating System Shutdown Initiated Due to Overheat Condition
+          #    Automatic Operating System Shutdown Initiated Due to Fan Failure
+          #    Blue Screen Trap (BugCheck, STOP: 0x00000050 (0x9CB2C5B4, 0x00000001, 0x00000004, 0x00000000))
+          #    Operating System failure (BugCheck, STOP: 0x000000AB (0x00000005, 0x00000488, 0x00000000, 0x00000002))
+          14 => "OS Class",
+          # 15 Unknown Event (Class 15, Code 255)
+          #15 => "",
+          # 17 Network Adapter Link Down (Slot 0, Port 4)
+          #    Network Adapters Redundancy Reduced (Slot 0, Port 1)
+          17 => "Network Adapter",
+          # 19 Drive Array Device Failure (Slot 0, Bus 2, Bay 4)
+          #    Internal SAS Enclosure Device Failure (Bay 1, Box 1, Port 2I, Slot 1)
+          #19 => "",
+          # 20 An Unrecoverable System Error (NMI) has occurred
+          #    Unrecoverable System Error has occurred (Error code 0x01AE0E2F, 0x00000000)
+          20 => "Unrecoverable System Error",
+          # 32 ROM flashed (New version: 01/09/2008)
+          32 => "System Revision",
+          # 33 IML Cleared (Administrator)
+          #    IML cleared through HP ProLiant Health Agent (cmahealthd)
+          #    Insight Diagnostics Note: Physisches Festplattenlaufwerk 5, Controller Steckplatz 0-Diagnosis: Fehlgeschlagen
+          33 => "Maintenance Note",
+          # 34 New Chassis Connected (Enclosure Address 27AC)
+          #    Loss Of Chassis Connectivity (Enclosure Serial Number 8004******)
+          #    Server Blade Enclosure Server Blade Inserted (Slot 16, Enclosure Address 0000)
+          #34 => "",
+      },
+      cpqHeEventLogEntrySeverityValue => {
+          2 => "informational",
+          3 => "infoWithAlert",
+          6 => "repaired",
+          9 => "caution",
+          15 => "critical",
+      },
+      # Time 
+      # 07 D8 09 02 11 11
+  };
+  # INDEX { cpqHeEventLogEntryNumber }
+  foreach ($self->get_entries($oids, 'cpqHeEventLogEntry')) {
+    if ($_->{cpqHeEventLogInitialTime} =~ /^(([0-9a-fA-F]{2})( [0-9a-fA-F]{2})*)\s*$/) {
+      $_->{cpqHeEventLogInitialTime} =~ s/ //;
+      my  ($year, $month, $day, $hour, $min) = map { hex($_) } split(/\s+/, $_->{cpqHeEventLogInitialTime});
+      if ($year == 0) {
+        $_->{cpqHeEventLogInitialTime} = 0;
+      } else {
+        eval {
+          $_->{cpqHeEventLogInitialTime} = timelocal(0, $min, $hour, $day, $month - 1, $year);
+        };
+        if ($@) {
+          $_->{cpqHeEventLogInitialTime} = 0;
+        }
+      }
+    } elsif ($_->{cpqHeEventLogInitialTime} =~ /^0x([0-9a-fA-F]{4})([0-9a-fA-F]{2})([0-9a-fA-F]{2})([0-9a-fA-F]{2})([0-9a-fA-F]{2})/) {
+      my  ($year, $month, $day, $hour, $min) = map { hex($_) } ($1, $2, $3, $4, $5);
+      if ($year == 0) {
+        $_->{cpqHeEventLogInitialTime} = 0;
+      } else {
+        eval {
+          $_->{cpqHeEventLogInitialTime} = timelocal(0, $min, $hour, $day, $month - 1, $year);
+        };
+        if ($@) {
+          $_->{cpqHeEventLogInitialTime} = 0;
+        }
+      }
+    } elsif ($_->{cpqHeEventLogInitialTime} =~ /^\0\0\0\0\0\0/) {
+      $_->{cpqHeEventLogInitialTime} = 0;
+    }
+    if ($_->{cpqHeEventLogUpdateTime} =~ /^(([0-9a-fA-F]{2})( [0-9a-fA-F]{2})*)\s*$/) {
+      $_->{cpqHeEventLogUpdateTime} =~ s/ //;
+      my  ($year, $month, $day, $hour, $min) = map { hex($_) } split(/\s+/, $_->{cpqHeEventLogUpdateTime});
+      if ($year == 0) {
+        $_->{cpqHeEventLogUpdateTime} = 0;
+      } else {
+        eval {
+          $_->{cpqHeEventLogUpdateTime} = timelocal(0, $min, $hour, $day, $month - 1, $year);
+        };
+        if ($@) {
+          $_->{cpqHeEventLogUpdateTime} = 0;
+        }
+      }
+    } elsif ($_->{cpqHeEventLogUpdateTime} =~ /^0x([0-9a-fA-F]{4})([0-9a-fA-F]{2})([0-9a-fA-F]{2})([0-9a-fA-F]{2})([0-9a-fA-F]{2})/) {
+      my  ($year, $month, $day, $hour, $min) = map { hex($_) } ($1, $2, $3, $4, $5);
+      if ($year == 0) {
+        $_->{cpqHeEventLogUpdateTime} = 0;
+      } else {
+        eval {
+          $_->{cpqHeEventLogUpdateTime} = timelocal(0, $min, $hour, $day, $month - 1, $year);
+        };
+        if ($@) {
+          $_->{cpqHeEventLogUpdateTime} = 0;
+        }
+      }
+    } elsif ($_->{cpqHeEventLogUpdateTime} =~ /^\0\0\0\0\0\0/) {
+      $_->{cpqHeEventLogUpdateTime} = 0;
+    }
+    if ($_->{cpqHeEventLogErrorDesc} =~ /^(([0-9a-fA-F]{2})(\s+[0-9a-fA-F]{2})*)\s*$/) {
+      $_->{cpqHeEventLogErrorDesc} = join "", map { chr($_) } map { if (hex($_) > 127) { 20; } else { hex($_) } } split(/\s+/, $_->{cpqHeEventLogErrorDesc});
+    }
+    push(@{$self->{events}},
+        HP::Proliant::Component::EventSubsystem::Event->new(%{$_}));
+  }
+}
+
+sub overall_check {
+  my $self = shift;
+  my $result = 0;
+  $self->blacklist('oe', '');
+  if ($self->{eventsupp} && $self->{eventsupp} eq "supported") {
+    if ($self->{eventstatus} eq "ok") {
+      $result = 0;
+      $self->add_info('eventlog system is ok');
+    } else {
+      $result = 0;
+      $self->add_info(sprintf "eventlog system is %s", $self->{eventstatus});
+    }
+  } else {
+    $result = 0;
+    $self->add_info('no event status found');
+  }
+}
+
+
 package HP::Proliant::Component::PowersupplySubsystem;
 our @ISA = qw(HP::Proliant::Component);
 
@@ -444,6 +987,7 @@ sub new {
     condition => $params{condition},
     status => $params{status},
     powersupplies => [],
+    powerconverters => [],
     blacklisted => 0,
     info => undef,
     extendedinfo => undef,
@@ -496,6 +1040,8 @@ sub new {
     cpqHeFltTolPowerSupplyPresent => $params{cpqHeFltTolPowerSupplyPresent},
     cpqHeFltTolPowerSupplyCondition => $params{cpqHeFltTolPowerSupplyCondition},
     cpqHeFltTolPowerSupplyRedundant => $params{cpqHeFltTolPowerSupplyRedundant},
+    cpqHeFltTolPowerSupplyCapacityUsed => $params{cpqHeFltTolPowerSupplyCapacityUsed} || 0,
+    cpqHeFltTolPowerSupplyCapacityMaximum => $params{cpqHeFltTolPowerSupplyCapacityMaximum} || 0,
     blacklisted => 0,
     info => undef,
     extendexinfo => undef,
@@ -526,6 +1072,24 @@ sub check {
     $self->add_extendedinfo(sprintf "ps_%s=%s",
         $self->{cpqHeFltTolPowerSupplyBay},
         $self->{cpqHeFltTolPowerSupplyCondition});
+    if ($self->{cpqHeFltTolPowerSupplyCapacityUsed} &&
+        $self->{cpqHeFltTolPowerSupplyCapacityMaximum}) {
+      if ($self->{runtime}->{options}->{perfdata}) {
+        $self->{runtime}->{plugin}->add_perfdata(
+            label => sprintf("pc_%s", $self->{cpqHeFltTolPowerSupplyBay}),
+            value => $self->{cpqHeFltTolPowerSupplyCapacityUsed},
+            warning => $self->{cpqHeFltTolPowerSupplyCapacityMaximum},
+            critical => $self->{cpqHeFltTolPowerSupplyCapacityMaximum}
+        );
+      }
+    } elsif ($self->{cpqHeFltTolPowerSupplyCapacityUsed}) {
+      if ($self->{runtime}->{options}->{perfdata}) {
+        $self->{runtime}->{plugin}->add_perfdata(
+            label => sprintf("pc_%s", $self->{cpqHeFltTolPowerSupplyBay}),
+            value => $self->{cpqHeFltTolPowerSupplyCapacityUsed}
+        );
+      }
+    }
   } else {
     $self->add_info(sprintf "powersupply %d is %s",
         $self->{cpqHeFltTolPowerSupplyBay},
@@ -542,11 +1106,83 @@ sub dump {
   printf "[PS_%s]\n", $self->{cpqHeFltTolPowerSupplyBay};
   foreach (qw(cpqHeFltTolPowerSupplyBay cpqHeFltTolPowerSupplyChassis
       cpqHeFltTolPowerSupplyPresent cpqHeFltTolPowerSupplyCondition
-      cpqHeFltTolPowerSupplyRedundant)) {
+      cpqHeFltTolPowerSupplyRedundant cpqHeFltTolPowerSupplyCapacityUsed
+      cpqHeFltTolPowerSupplyCapacityMaximum)) {
     printf "%s: %s\n", $_, $self->{$_};
   }
   printf "info: %s\n\n", $self->{info};
 }
+
+
+package HP::Proliant::Component::PowersupplySubsystem::Powerconverter;
+our @ISA = qw(HP::Proliant::Component::PowersupplySubsystem);
+
+use strict;
+use constant { OK => 0, WARNING => 1, CRITICAL => 2, UNKNOWN => 3 };
+
+sub new {
+  my $class = shift;
+  my %params = @_;
+  my $self = {
+    runtime => $params{runtime},
+
+    cpqHePowerConvEntry => $params{cpqHePowerConvEntry},
+    cpqHePowerConvChassis => $params{cpqHePowerConvChassis},
+    cpqHePowerConvIndex => $params{cpqHePowerConvIndex},
+    cpqHePowerConvPresent => $params{cpqHePowerConvPresent},
+    cpqHePowerConvRedundant => $params{cpqHePowerConvRedundant},
+    cpqHePowerConvCondition => $params{cpqHePowerConvCondition},
+    cpqHePowerConvHwLocation => $params{cpqHePowerConvHwLocation},
+    blacklisted => 0,
+    info => undef,
+    extendexinfo => undef,
+  };
+  bless $self, $class;
+  return $self;
+}
+
+sub check {
+  my $self = shift;
+  $self->blacklist('pc', $self->{cpqHePowerConvIndex});
+  if ($self->{cpqHePowerConvPresent} eq "present") {
+    if ($self->{cpqHePowerConvCondition} ne "ok") {
+      if ($self->{cpqHePowerConvCondition} eq "other") {
+        $self->add_info(sprintf "powerconverter %d is missing",
+            $self->{cpqHePowerConvIndex});
+      } else {
+        $self->add_info(sprintf "powerconverter %d needs attention (%s)",
+            $self->{cpqHePowerConvIndex},
+            $self->{cpqHePowerConvCondition});
+      }
+      $self->add_message(CRITICAL, $self->{info});
+    } else {
+      $self->add_info(sprintf "powerconverter %d is %s",
+          $self->{cpqHePowerConvIndex},
+          $self->{cpqHePowerConvCondition});
+    }
+    $self->add_extendedinfo(sprintf "pc_%s=%s",
+        $self->{cpqHePowerConvIndex},
+        $self->{cpqHePowerConvCondition});
+  } else {
+    $self->add_info(sprintf "powerconverter %d is %s",
+        $self->{cpqHePowerConvIndex},
+        $self->{cpqHePowerConvPresent});
+    $self->add_extendedinfo(sprintf "pc_%s=%s",
+        $self->{cpqHePowerConvIndex},
+        $self->{cpqHePowerConvPresent});
+  }
+}
+
+
+sub dump {
+  my $self = shift;
+  printf "[PS_%s]\n", ($self->{cpqHePowerConvChassis} ? $self->{cpqHePowerConvChassis}.":" : "").$self->{cpqHePowerConvIndex};
+  foreach (qw(cpqHePowerConvIndex cpqHePowerConvPresent cpqHePowerConvRedundant cpqHePowerConvCondition)) {
+    printf "%s: %s\n", $_, $self->{$_};
+  }
+  printf "info: %s\n\n", $self->{info};
+}
+
 
 
 package HP::Proliant::Component::PowersupplySubsystem::CLI;
@@ -562,6 +1198,7 @@ sub new {
     runtime => $params{runtime},
     rawdata => $params{rawdata},
     powersupplies => [],
+    powerconverters => [],
     blacklisted => 0,
     info => undef,
     extendedinfo => undef,
@@ -601,6 +1238,8 @@ sub init {
           lc $1 eq 'no' ? 'notRedundant' : 'other';
     } elsif (/\s*Condition\s*:\s+(\w+)/) {
       $tmpps{cpqHeFltTolPowerSupplyCondition} = lc $1;
+    } elsif (/\s*Power\s*:\s+(\d+)/) {
+      $tmpps{cpqHeFltTolPowerSupplyCapacityUsed} = $1;
     } elsif (/\s*Power Supply not present/) {
       $tmpps{cpqHeFltTolPowerSupplyPresent} = "absent";
       $tmpps{cpqHeFltTolPowerSupplyCondition} = "other";
@@ -641,6 +1280,7 @@ sub new {
     runtime => $params{runtime},
     rawdata => $params{rawdata},
     powersupplies => [],
+    powerconverters => [],
     blacklisted => 0,
     info => undef,
     extendedinfo => undef,
@@ -672,6 +1312,8 @@ sub init {
           3 => "degraded",
           4 => "failed",
       },
+      cpqHeFltTolPowerSupplyCapacityUsed => '1.3.6.1.4.1.232.6.2.9.3.1.7',
+      cpqHeFltTolPowerSupplyCapacityMaximum => '1.3.6.1.4.1.232.6.2.9.3.1.8',
       cpqHeFltTolPowerSupplyRedundantValue => {
           1 => "other",
           2 => "notRedundant",
@@ -687,7 +1329,7 @@ sub init {
 
   $oids = {
       cpqHePowerConvEntry => "1.3.6.1.4.1.232.6.2.13.3.1",
-      cpqHePowerConvChassis => "1.3.6.1.4.1.232.6.2.13.3.1",
+      cpqHePowerConvChassis => "1.3.6.1.4.1.232.6.2.13.3.1.1",
       cpqHePowerConvIndex => "1.3.6.1.4.1.232.6.2.13.3.1.2",
       cpqHePowerConvPresent => "1.3.6.1.4.1.232.6.2.13.3.1.3",
       cpqHePowerConvRedundant => "1.3.6.1.4.1.232.6.2.13.3.1.6",
@@ -712,10 +1354,10 @@ sub init {
   };
 
   # INDEX { cpqHePowerConvChassis cpqHePowerConvIndex }
-  #foreach ($self->get_entries($oids, 'cpqHePowerConvEntry')) {
-    #push(@{$self->{powersupplies}},
-    #    HP::Proliant::Component::PowersupplySubsystem::Powersupply->new(%{$_}));
-  #}
+  foreach ($self->get_entries($oids, 'cpqHePowerConvEntry')) {
+    push(@{$self->{powerconverters}},
+        HP::Proliant::Component::PowersupplySubsystem::Powerconverter->new(%{$_}));
+  }
   # keine ahnung, was man damit machen kann
 
 }
@@ -807,6 +1449,7 @@ sub new {
     cpqHeTemperatureCelsius => $params{cpqHeTemperatureCelsius},
     cpqHeTemperatureThresholdCelsius => $params{cpqHeTemperatureThresholdCelsius},
     cpqHeTemperatureCondition => $params{cpqHeTemperatureCondition},
+    cpqHeTemperatureThresholdType => $params{cpqHeTemperatureThresholdType} || "unknown",
     blacklisted => 0,
     info => undef,
     extendedinfo => undef,
@@ -830,6 +1473,12 @@ sub new {
         $params{runtime}->{options}->{thresholds}->{$index};
         
   }
+  if ($self->{cpqHeTemperatureThresholdCelsius} == -99) {
+    bless $self, 'HP::Proliant::Component::TemperatureSubsystem::SoSTemperature';
+  } elsif ($self->{cpqHeTemperatureThresholdCelsius} == 0) {
+    # taucht auf, seit man gen8 ueber das ilo abfragen kann
+    bless $self, 'HP::Proliant::Component::TemperatureSubsystem::SoSTemperature';
+  }
   return $self;
 }
 
@@ -841,6 +1490,12 @@ sub check {
         $self->{cpqHeTemperatureIndex}, $self->{cpqHeTemperatureLocale},
         $self->{cpqHeTemperature}, $self->{cpqHeTemperatureUnits},
         $self->{cpqHeTemperatureThreshold});
+    $self->add_message(CRITICAL, $self->{info});
+  } elsif ($self->{cpqHeTemperature} < 0) {
+    # #21 SCSI_BACKPLANE_ZONE -1C/31F 60C/140F OK - can't be true
+    $self->add_info(sprintf "%d %s temperature too low (%d%s)",
+        $self->{cpqHeTemperatureIndex}, $self->{cpqHeTemperatureLocale},
+        $self->{cpqHeTemperature}, $self->{cpqHeTemperatureUnits});
     $self->add_message(CRITICAL, $self->{info});
   } else {
     $self->add_info(sprintf "%d %s temperature is %d%s (%d max)",
@@ -874,10 +1529,40 @@ sub dump {
   printf "[TEMP_%s]\n", $self->{cpqHeTemperatureIndex};
   foreach (qw(cpqHeTemperatureChassis cpqHeTemperatureIndex 
       cpqHeTemperatureLocale cpqHeTemperatureCelsius cpqHeTemperatureThreshold
-      cpqHeTemperatureCondition)) {
+      cpqHeTemperatureThresholdType cpqHeTemperatureCondition)) {
     printf "%s: %s\n", $_, $self->{$_};
   }
   printf "info: %s\n\n", $self->{info};
+}
+
+
+package HP::Proliant::Component::TemperatureSubsystem::SoSTemperature;
+our @ISA = qw(HP::Proliant::Component::TemperatureSubsystem::Temperature);
+
+use strict;
+use constant { OK => 0, WARNING => 1, CRITICAL => 2, UNKNOWN => 3 };
+
+sub check {
+  my $self = shift;
+  $self->blacklist('t', $self->{cpqHeTemperatureIndex});
+  $self->add_info(sprintf "%d %s temperature is %d%s (no thresh.)",
+      $self->{cpqHeTemperatureIndex}, $self->{cpqHeTemperatureLocale}, 
+      $self->{cpqHeTemperature}, $self->{cpqHeTemperatureUnits});
+  if ($self->{runtime}->{options}->{perfdata} == 2) {
+    $self->{runtime}->{plugin}->add_perfdata(
+        label => sprintf('temp_%s', $self->{cpqHeTemperatureIndex}),
+        value => $self->{cpqHeTemperature},
+    );
+  } elsif ($self->{runtime}->{options}->{perfdata} == 1) {
+    $self->{runtime}->{plugin}->add_perfdata(
+        label => sprintf('temp_%s_%s', $self->{cpqHeTemperatureIndex},
+            $self->{cpqHeTemperatureLocale}),
+        value => $self->{cpqHeTemperature},
+    );
+  } 
+  $self->add_extendedinfo(sprintf "temp_%s=%d",
+      $self->{cpqHeTemperatureIndex},
+      $self->{cpqHeTemperature});
 }
 
 
@@ -910,7 +1595,7 @@ sub init {
   my $tempcnt = 1;
   foreach (grep(/^temp/, split(/\n/, $params{rawdata}))) {
     s/^temp\s*//g;
-    if (/^#(\d+)\s+([\w_\/\-#]+)\s+(\d+)C\/(\d+)F\s+(\d+)C\/(\d+)F/) {
+    if (/^#(\d+)\s+([\w_\/\-#]+)\s+(-*\d+)C\/(\d+)F\s+(\d+)C\/(\d+)F/) {
       my %params = ();
       $params{runtime} = $self->{runtime};
       $params{cpqHeTemperatureChassis} = 1;
@@ -957,8 +1642,27 @@ sub new {
     extendedinfo => undef,
   };
   bless $self, $class;
+  $self->overall_init(%params);
   $self->init(%params);
   return $self;
+}
+
+sub overall_init {
+  my $self = shift;
+  my %params = @_;
+  my $snmpwalk = $params{rawdata};
+  # overall
+  my $cpqHeThermalTempStatus  = '1.3.6.1.4.1.232.6.2.6.3.0';
+  my $cpqHeThermalTempStatusValue = {
+    1 => 'other',
+    2 => 'ok',
+    3 => 'degraded',
+    4 => 'failed',
+  };
+  $self->{tempstatus} = lc SNMP::Utils::get_object_value(
+      $snmpwalk, $cpqHeThermalTempStatus,
+      $cpqHeThermalTempStatusValue);
+  $self->{tempstatus} |= lc $self->{tempstatus};
 }
 
 sub init {
@@ -973,6 +1677,7 @@ sub init {
       cpqHeTemperatureCelsius => "1.3.6.1.4.1.232.6.2.6.8.1.4",
       cpqHeTemperatureThresholdCelsius => "1.3.6.1.4.1.232.6.2.6.8.1.5",
       cpqHeTemperatureCondition => "1.3.6.1.4.1.232.6.2.6.8.1.6",
+      cpqHeTemperatureThresholdType => "1.3.6.1.4.1.232.6.2.6.8.1.7",
       cpqHeTemperatureLocaleValue => {
           1 => "other",
           2 => "unknown",
@@ -993,12 +1698,46 @@ sub init {
           2 => 'ok',
           3 => 'degraded',
           4 => 'failed',
-      }
+      },
+      cpqHeTemperatureThresholdTypeValue => {
+          1 => 'other',
+          5 => 'blowout',
+          9 => 'caution',
+          15 => 'critical',
+      },
   };
   # INDEX { cpqHeTemperatureChassis, cpqHeTemperatureIndex }
   foreach ($self->get_entries($oids, 'cpqHeTemperatureEntry')) {
+    # sieht aus, als wurden die gar nicht existieren.
+    # im ilo4 werden sie als n/a angezeigt
+    next if $_->{cpqHeTemperatureThresholdType} eq "caution" && $_->{cpqHeTemperatureThresholdCelsius} == 0;
     push(@{$self->{temperatures}},
         HP::Proliant::Component::TemperatureSubsystem::Temperature->new(%{$_}));
+  }
+}
+
+sub overall_check {
+  my $self = shift;
+  my $result = 0;
+  $self->blacklist('ots', '');
+  if ($self->{tempstatus}) {
+    if ($self->{tempstatus} eq "ok") {
+      $result = 0;
+      $self->add_info('all temp sensors are within normal operating range');
+    } elsif ($self->{tempstatus} eq "degraded") {
+      $result = 1;
+      $self->add_info('a temp sensor is outside of normal operating range');
+    } elsif ($self->{tempstatus} eq "failed") {
+      $result = 2;
+      $self->add_info('a temp sensor detects a condition that could permanently
+damage the system');
+    } elsif ($self->{tempstatus} eq "other") {
+      $result = 0;
+      $self->add_info('temp sensing is not supported by this system or driver');
+    }
+  } else {
+    $result = 0;
+    $self->add_info('no global temp status found');
   }
 }
 
@@ -1631,12 +2370,14 @@ sub overall_init {
     2 => 'ok',
     4 => 'failed', # shutdown
   };
-  $self->{sysstatus} = lc SNMP::Utils::get_object_value(
+  $self->{sysstatus} = SNMP::Utils::get_object_value(
       $snmpwalk, $cpqHeThermalSystemFanStatus,
       $cpqHeThermalSystemFanStatusValue);
-  $self->{cpustatus} = lc SNMP::Utils::get_object_value(
+  $self->{cpustatus} = SNMP::Utils::get_object_value(
       $snmpwalk, $cpqHeThermalCpuFanStatus,
       $cpqHeThermalCpuFanStatusValue);
+  $self->{sysstatus} |= lc $self->{sysstatus};
+  $self->{cpustatus} |= lc $self->{cpustatus};
 }
 
 sub te_init {
@@ -1871,6 +2612,22 @@ sub init {
           runtime => $params{runtime},
         );
       }
+    } elsif (/(\d+)\s+(\d+)\s+(\w+)\s+(0x\w+)\s+(0x\w+)\s+(\d+[MGT]B)\s+(\d+MHz)\s+(\w+)/) {
+      $tmpdimm{cartridge} = $1;
+      $tmpdimm{module} = $2;
+      $tmpdimm{status} = lc $3 eq 'yes' ? 'present' :
+          lc $3 eq 'no' ? 'notPresent' : 'other';
+      my $formfactor = $4;
+      my $memorytype = $5;
+      my $memorysize = $6;
+      my $memoryspeed = $7;
+      $tmpdimm{condition} = lc $8 =~ /degraded/ ? 'degraded' :
+          lc $8 eq 'ok' ? 'ok' : lc $8 =~ /n\/a/ ? 'n/a' : 'other';
+      $memorysize =~ /(\d+)([MGT]B)/;
+      $tmpdimm{size} = $1 * (lc $2 eq 'mb' ? 1024*1024 :
+          lc $2 eq 'gb' ? 1024*1024*1024 : 1);
+      push(@{$self->{dimms}},
+          HP::Proliant::Component::MemorySubsystem::Dimm->new(%tmpdimm));
     }
   }
   if ($inblock) {
@@ -2351,8 +3108,7 @@ sub update_si_with_he {
   } elsif ((scalar(@{$self->{si_dimms}}) > 1) && 
       (scalar(@{$self->{he_dimms}}) == 1)) {
     # siehe update_si_with_si. he-fragment
-    $self->update_si_with_si();
-    return;
+    return $self->update_si_with_si();
   } else { 
     # z.b. 4 si notpresent, 4 si present, 4 he
   }
@@ -2744,8 +3500,8 @@ sub new {
 
 sub check {
   my $self = shift;
-  # check dient nur dazu, info und extended_info zu füllen
-  # die eigentliche bewertung findet eins höher statt
+  # check dient nur dazu, info und extended_info zu fuellen
+  # die eigentliche bewertung findet eins hoeher statt
   $self->blacklist('d', $self->{name});
   if (($self->{status} eq 'present') || ($self->{status} eq 'good')) {
     if ($self->{condition} eq 'other') {
@@ -2827,6 +3583,542 @@ sub dump {
   #}
   #printf "\n";
 }
+
+
+package HP::Proliant::Component::NicSubsystem::SNMP;
+our @ISA = qw(HP::Proliant::Component::NicSubsystem
+    HP::Proliant::Component::SNMP);
+
+use strict;
+use constant { OK => 0, WARNING => 1, CRITICAL => 2, UNKNOWN => 3 };
+
+sub new {
+  my $class = shift;
+  my %params = @_;
+  my $self = {
+    runtime => $params{runtime},
+    rawdata => $params{rawdata},
+    blacklisted => 0,
+    info => undef,
+    extendedinfo => undef,
+    logical_nics => [],
+    physical_nics => [],
+  };
+  bless $self, $class;
+  $self->overall_init(%params);
+  $self->init();
+  return $self;
+}
+
+sub overall_init {
+  my $self = shift;
+  my %params = @_;
+  my $snmpwalk = $self->{rawdata};
+  # overall
+  my $cpqNicIfLogMapOverallCondition  = '1.3.6.1.4.1.232.18.2.2.2.0';
+  my $cpqNicIfLogMapOverallConditionValue = {
+    1 => 'other',
+    2 => 'ok',
+    3 => 'degraded',
+    4 => 'failed',
+  };
+  $self->{lognicstatus} = SNMP::Utils::get_object_value(
+      $snmpwalk, $cpqNicIfLogMapOverallCondition,
+      $cpqNicIfLogMapOverallConditionValue);
+}
+
+sub init {
+  my $self = shift;
+  my $snmpwalk = $self->{rawdata};
+  my $ifconnect = {};
+  # CPQNIC-MIB
+  my $oids = {
+      cpqNicIfLogMapEntry => '1.3.6.1.4.1.232.18.2.2.1.1',
+      cpqNicIfLogMapIndex => '1.3.6.1.4.1.232.18.2.2.1.1.1',
+      cpqNicIfLogMapIfNumber => '1.3.6.1.4.1.232.18.2.2.1.1.2',
+      cpqNicIfLogMapDescription => '1.3.6.1.4.1.232.18.2.2.1.1.3',
+      cpqNicIfLogMapGroupType => '1.3.6.1.4.1.232.18.2.2.1.1.4',
+      cpqNicIfLogMapAdapterCount => '1.3.6.1.4.1.232.18.2.2.1.1.5',
+      cpqNicIfLogMapAdapterOKCount => '1.3.6.1.4.1.232.18.2.2.1.1.6',
+      cpqNicIfLogMapPhysicalAdapters => '1.3.6.1.4.1.232.18.2.2.1.1.7',
+      cpqNicIfLogMapMACAddress => '1.3.6.1.4.1.232.18.2.2.1.1.8',
+      cpqNicIfLogMapSwitchoverMode => '1.3.6.1.4.1.232.18.2.2.1.1.9',
+      cpqNicIfLogMapCondition => '1.3.6.1.4.1.232.18.2.2.1.1.10',
+      cpqNicIfLogMapStatus => '1.3.6.1.4.1.232.18.2.2.1.1.11',
+      cpqNicIfLogMapNumSwitchovers => '1.3.6.1.4.1.232.18.2.2.1.1.12',
+      cpqNicIfLogMapHwLocation => '1.3.6.1.4.1.232.18.2.2.1.1.13',
+      cpqNicIfLogMapSpeed => '1.3.6.1.4.1.232.18.2.2.1.1.14',
+      cpqNicIfLogMapVlanCount => '1.3.6.1.4.1.232.18.2.2.1.1.15',
+      cpqNicIfLogMapVlans => '1.3.6.1.4.1.232.18.2.2.1.1.16',
+
+      cpqNicIfLogMapGroupTypeValue => {
+          1 => "unknown",
+          2 => "none",
+          3 => "redundantPair",
+          4 => "nft",
+          5 => "alb",
+          6 => "fec",
+          7 => "gec",
+          8 => "ad",
+          9 => "slb",
+          10 => "tlb",
+          11 => "redundancySet",
+      },
+      cpqNicIfLogMapConditionValue => {
+          1 => "other",
+          2 => "ok",
+          3 => "degraded",
+          4 => "failed",
+      },
+      cpqNicIfLogMapStatusValue => {
+          1 => "unknown",
+          2 => "ok",
+          3 => "primaryFailed",
+          4 => "standbyFailed",
+          5 => "groupFailed",
+          6 => "redundancyReduced",
+          7 => "redundancyLost",
+      },
+      cpqNicIfLogMapSwitchoverModeValue => {
+          1 => "unknown",
+          2 => "none",
+          3 => "manual",
+          4 => "switchOnFail",
+          5 => "preferredPrimary",
+      },
+  };
+
+  # INDEX { cpqNicIfLogMapIndex }
+  foreach ($self->get_entries($oids, 'cpqNicIfLogMapEntry')) {
+    push(@{$self->{logical_nics}}, 
+        HP::Proliant::Component::NicSubsystem::LogicalNic->new(%{$_})
+    );
+  }
+
+  $oids = {
+      cpqNicIfPhysAdapterEntry => '1.3.6.1.4.1.232.18.2.3.1.1',
+      cpqNicIfPhysAdapterIndex => '1.3.6.1.4.1.232.18.2.3.1.1.1',
+      cpqNicIfPhysAdapterIfNumber => '1.3.6.1.4.1.232.18.2.3.1.1.2',
+      cpqNicIfPhysAdapterRole => '1.3.6.1.4.1.232.18.2.3.1.1.3',
+      cpqNicIfPhysAdapterMACAddress => '1.3.6.1.4.1.232.18.2.3.1.1.4',
+      cpqNicIfPhysAdapterSlot => '1.3.6.1.4.1.232.18.2.3.1.1.5',
+      cpqNicIfPhysAdapterIoAddr => '1.3.6.1.4.1.232.18.2.3.1.1.6',
+      cpqNicIfPhysAdapterIrq => '1.3.6.1.4.1.232.18.2.3.1.1.7',
+      cpqNicIfPhysAdapterDma => '1.3.6.1.4.1.232.18.2.3.1.1.8',
+      cpqNicIfPhysAdapterMemAddr => '1.3.6.1.4.1.232.18.2.3.1.1.9',
+      cpqNicIfPhysAdapterPort => '1.3.6.1.4.1.232.18.2.3.1.1.10',
+      cpqNicIfPhysAdapterDuplexState => '1.3.6.1.4.1.232.18.2.3.1.1.11',
+      cpqNicIfPhysAdapterCondition => '1.3.6.1.4.1.232.18.2.3.1.1.12',
+      cpqNicIfPhysAdapterState => '1.3.6.1.4.1.232.18.2.3.1.1.13',
+      cpqNicIfPhysAdapterStatus => '1.3.6.1.4.1.232.18.2.3.1.1.14',
+      cpqNicIfPhysAdapterStatsValid => '1.3.6.1.4.1.232.18.2.3.1.1.15',
+      cpqNicIfPhysAdapterGoodTransmits => '1.3.6.1.4.1.232.18.2.3.1.1.16',
+      cpqNicIfPhysAdapterGoodReceives => '1.3.6.1.4.1.232.18.2.3.1.1.17',
+      cpqNicIfPhysAdapterBadTransmits => '1.3.6.1.4.1.232.18.2.3.1.1.18',
+      cpqNicIfPhysAdapterBadReceives => '1.3.6.1.4.1.232.18.2.3.1.1.19',
+      cpqNicIfPhysAdapterAlignmentErrors => '1.3.6.1.4.1.232.18.2.3.1.1.20',
+      cpqNicIfPhysAdapterFCSErrors => '1.3.6.1.4.1.232.18.2.3.1.1.21',
+      cpqNicIfPhysAdapterSingleCollisionFrames => '1.3.6.1.4.1.232.18.2.3.1.1.22',
+      cpqNicIfPhysAdapterMultipleCollisionFrames => '1.3.6.1.4.1.232.18.2.3.1.1.23',
+      cpqNicIfPhysAdapterDeferredTransmissions => '1.3.6.1.4.1.232.18.2.3.1.1.24',
+      cpqNicIfPhysAdapterLateCollisions => '1.3.6.1.4.1.232.18.2.3.1.1.25',
+      cpqNicIfPhysAdapterExcessiveCollisions => '1.3.6.1.4.1.232.18.2.3.1.1.26',
+      cpqNicIfPhysAdapterInternalMacTransmitErrors => '1.3.6.1.4.1.232.18.2.3.1.1.27',
+      cpqNicIfPhysAdapterCarrierSenseErrors => '1.3.6.1.4.1.232.18.2.3.1.1.28',
+      cpqNicIfPhysAdapterFrameTooLongs => '1.3.6.1.4.1.232.18.2.3.1.1.29',
+      cpqNicIfPhysAdapterInternalMacReceiveErrors => '1.3.6.1.4.1.232.18.2.3.1.1.30',
+      cpqNicIfPhysAdapterHwLocation => '1.3.6.1.4.1.232.18.2.3.1.1.31',
+      cpqNicIfPhysAdapterPartNumber => '1.3.6.1.4.1.232.18.2.3.1.1.32',
+      cpqNicIfPhysAdapterRoleValue => {
+          1 => "unknown",
+          2 => "primary",
+          3 => "secondary",
+          4 => "member",
+          5 => "txRx",
+          6 => "tx",
+          7 => "standby",
+          8 => "none",
+          255 => "notApplicable",
+      },
+      cpqNicIfPhysAdapterDuplexStateValue => {
+          1 => "unknown",
+          2 => "half",
+          3 => "full",
+      },
+      cpqNicIfPhysAdapterConditionValue => {
+          1 => "other",
+          2 => "ok",
+          3 => "degraded",
+          4 => "failed",
+      },
+      cpqNicIfPhysAdapterStateValue => {
+          1 => "unknown",
+          2 => "ok",
+          3 => "standby",
+          4 => "failed",
+      },
+      cpqNicIfPhysAdapterStatusValue => {
+          1 => "unknown",
+          2 => "ok",
+          3 => "generalFailure",
+          4 => "linkFailure",
+      },
+
+  };
+  # INDEX { cpqNicIfPhysAdapterIndex }
+  foreach ($self->get_entries($oids, 'cpqNicIfPhysAdapterEntry')) {
+    push(@{$self->{physical_nics}},
+        HP::Proliant::Component::NicSubsystem::PhysicalNic->new(%{$_}));
+  }
+
+}
+
+
+package HP::Proliant::Component::NicSubsystem;
+our @ISA = qw(HP::Proliant::Component);
+
+use strict;
+use constant { OK => 0, WARNING => 1, CRITICAL => 2, UNKNOWN => 3 };
+
+sub new {
+  my $class = shift;
+  my %params = @_;
+  my $self = {
+    runtime => $params{runtime},
+    rawdata => $params{rawdata},
+    method => $params{method},
+    condition => $params{condition},
+    status => $params{status},
+    logical_nics => [],
+    physical_nics => [],
+    blacklisted => 0,
+    info => undef,
+    extendedinfo => undef,
+  };
+  bless $self, $class;
+  if ($self->{method} eq 'snmp') {
+    return HP::Proliant::Component::NicSubsystem::SNMP->new(%params);
+  } elsif ($self->{method} eq 'cli') {
+    return HP::Proliant::Component::NicSubsystem::CLI->new(%params);
+  } else {
+    die "unknown method";
+  }
+  return $self;
+}
+
+sub check {
+  my $self = shift;
+  my $errorfound = 0;
+  $self->add_info('checking nic teams');
+  if (scalar (@{$self->{logical_nics}}) == 0) {
+    $self->add_info('no logical nics found');
+    $self->overall_check();
+  } else {
+    foreach (@{$self->{logical_nics}}) {
+      $_->check();
+    }
+  }
+  if (scalar (@{$self->{physical_nics}}) == 0) {
+    $self->add_info('no physical nics found. do you connect with slip?');
+  } else {
+    foreach (@{$self->{physical_nics}}) {
+      $_->check();
+    }
+  }
+}
+
+sub num_logical_nics {
+  my $self = shift;
+  return scalar @{$self->{logical_nics}};
+}
+
+sub num_physical_nics {
+  my $self = shift;
+  return scalar @{$self->{physical_nics}};
+}
+
+sub dump {
+  my $self = shift;
+  foreach (@{$self->{logical_nics}}) {
+    $_->dump();
+  }
+  foreach (@{$self->{physical_nics}}) {
+    $_->dump();
+  }
+}
+
+sub overall_check {
+  my $self = shift;
+  if ($self->{lognicstatus} ne "ok") {
+    $self->add_info(sprintf 'overall logical nic status is %s',
+        $self->{lognicstatus});
+  }
+}
+
+
+package HP::Proliant::Component::NicSubsystem::LogicalNic;
+our @ISA = qw(HP::Proliant::Component::NicSubsystem);
+
+use strict;
+use constant { OK => 0, WARNING => 1, CRITICAL => 2, UNKNOWN => 3 };
+
+sub new {
+  my $class = shift;
+  my %params = @_;
+  my $self = {
+    runtime => $params{runtime},
+    blacklisted => 0,
+    info => undef,
+    extendedinfo => undef,
+  };
+  foreach (qw(cpqNicIfLogMapIndex cpqNicIfLogMapIfNumber cpqNicIfLogMapDescription cpqNicIfLogMapGroupType cpqNicIfLogMapAdapterCount cpqNicIfLogMapAdapterOKCount cpqNicIfLogMapPhysicalAdapters cpqNicIfLogMapSwitchoverMode cpqNicIfLogMapCondition cpqNicIfLogMapStatus cpqNicIfLogMapNumSwitchovers cpqNicIfLogMapHwLocation cpqNicIfLogMapSpeed cpqNicIfLogMapVlanCount cpqNicIfLogMapVlans)) {
+    $self->{$_} = $params{$_};
+  }
+  bless $self, $class;
+  return $self;
+}
+
+sub check {
+  my $self = shift;
+  $self->blacklist('lni', $self->{cpqNicIfLogMapIndex});
+  if ($self->{cpqNicIfLogMapAdapterCount} > 0) {
+    if ($self->{cpqNicIfLogMapCondition} eq "other") {
+      # simply ignore this. if there is a physical nic
+      # it is usually unknown/other/scheissegal
+      $self->add_info(sprintf "logical nic %d (%s) is %s",
+          $self->{cpqNicIfLogMapIndex}, $self->{cpqNicIfLogMapDescription},
+          $self->{cpqNicIfLogMapCondition});
+    } elsif ($self->{cpqNicIfLogMapCondition} ne "ok") {
+      $self->add_info(sprintf "logical nic %d (%s) is %s (%s)",
+          $self->{cpqNicIfLogMapIndex}, $self->{cpqNicIfLogMapDescription},
+          $self->{cpqNicIfLogMapCondition}, $self->{cpqNicIfLogMapStatus});
+      $self->add_message(CRITICAL, $self->{info});
+    } else {
+      $self->add_info(sprintf "logical nic %d (%s) is %s",
+          $self->{cpqNicIfLogMapIndex}, $self->{cpqNicIfLogMapDescription},
+          $self->{cpqNicIfLogMapCondition});
+    }
+  } else {
+    $self->add_info(sprintf "logical nic %d (%s) has 0 physical nics",
+        $self->{cpqNicIfLogMapIndex}, $self->{cpqNicIfLogMapDescription});
+  }
+}
+
+sub dump {
+  my $self = shift;
+  printf "[LNIC_%s]\n", $self->{cpqNicIfLogMapIndex};
+  foreach (qw(cpqNicIfLogMapIndex cpqNicIfLogMapIfNumber cpqNicIfLogMapDescription cpqNicIfLogMapAdapterCount cpqNicIfLogMapGroupType cpqNicIfLogMapSwitchoverMode cpqNicIfLogMapCondition cpqNicIfLogMapStatus cpqNicIfLogMapNumSwitchovers cpqNicIfLogMapHwLocation cpqNicIfLogMapSpeed)) {
+    printf "%s: %s\n", $_, $self->{$_};
+  }
+  printf "info: %s\n", $self->{info};
+  printf "\n";
+}
+
+
+package HP::Proliant::Component::NicSubsystem::PhysicalNic;
+our @ISA = qw(HP::Proliant::Component::NicSubsystem);
+
+use strict;
+use constant { OK => 0, WARNING => 1, CRITICAL => 2, UNKNOWN => 3 };
+
+sub new {
+  my $class = shift;
+  my %params = @_;
+  my $self = {
+    runtime => $params{runtime},
+    blacklisted => 0,
+    info => undef,
+    extendedinfo => undef,
+  };
+  foreach (qw(cpqNicIfPhysAdapterIndex cpqNicIfPhysAdapterIfNumber cpqNicIfPhysAdapterRole cpqNicIfPhysAdapterDuplexState cpqNicIfPhysAdapterCondition cpqNicIfPhysAdapterState cpqNicIfPhysAdapterStatus cpqNicIfPhysAdapterBadTransmits cpqNicIfPhysAdapterBadReceives)) {
+    $self->{$_} = $params{$_};
+  }
+  bless $self, $class;
+  return $self;
+}
+
+sub check {
+  my $self = shift;
+  $self->blacklist('pni', $self->{cpqNicIfPhysAdapterIndex});
+  if ($self->{cpqNicIfPhysAdapterCondition} eq "other") {
+    # hp doesnt output a clear status. i am optimistic, unknown/other
+    # means "dont care"
+    $self->add_info(sprintf "physical nic %d (%s) is %s",
+        $self->{cpqNicIfPhysAdapterIndex}, $self->{cpqNicIfPhysAdapterRole},
+        $self->{cpqNicIfPhysAdapterCondition});
+  } elsif ($self->{cpqNicIfPhysAdapterCondition} ne "ok") {
+    $self->add_info(sprintf "physical nic %d (%s) is %s (%s,%s)",
+        $self->{cpqNicIfPhysAdapterIndex}, $self->{cpqNicIfPhysAdapterRole},
+        $self->{cpqNicIfPhysAdapterCondition},
+        $self->{cpqNicIfPhysAdapterState}, $self->{cpqNicIfPhysAdapterStatus});
+    $self->add_message(CRITICAL, $self->{info});
+  } else {
+    if ($self->{cpqNicIfPhysAdapterDuplexState} ne "full") {
+      $self->add_info(sprintf "physical nic %d (%s) is %s duplex",
+          $self->{cpqNicIfPhysAdapterIndex}, $self->{cpqNicIfPhysAdapterRole},
+          $self->{cpqNicIfPhysAdapterDuplexState});
+    } else {
+      $self->add_info(sprintf "physical nic %d (%s) is %s",
+          $self->{cpqNicIfPhysAdapterIndex}, $self->{cpqNicIfPhysAdapterRole},
+          $self->{cpqNicIfPhysAdapterCondition});
+    }
+  }
+}
+
+sub dump {
+  my $self = shift;
+  printf "[PNIC_%s]\n", $self->{cpqNicIfPhysAdapterIndex};
+  foreach (qw(cpqNicIfPhysAdapterIndex cpqNicIfPhysAdapterIfNumber cpqNicIfPhysAdapterRole cpqNicIfPhysAdapterDuplexState cpqNicIfPhysAdapterCondition cpqNicIfPhysAdapterState cpqNicIfPhysAdapterStatus cpqNicIfPhysAdapterBadTransmits cpqNicIfPhysAdapterBadReceives)) {
+    printf "%s: %s\n", $_, $self->{$_};
+  }
+  printf "info: %s\n", $self->{info};
+  printf "\n";
+}
+
+
+package HP::Proliant::Component::AsrSubsystem::CLI;
+our @ISA = qw(HP::Proliant::Component::AsrSubsystem);
+
+use strict;
+use constant { OK => 0, WARNING => 1, CRITICAL => 2, UNKNOWN => 3 };
+
+sub new {
+  my $class = shift;
+  my %params = @_;
+  my $self = {
+    runtime => $params{runtime},
+    rawdata => $params{rawdata},
+    blacklisted => 0,
+    info => undef,
+    extendedinfo => undef,
+  };
+  bless $self, $class;
+  $self->init(%params);
+  return $self;
+}
+
+sub init {
+  my $self = shift;
+  my %params = @_;
+}
+
+sub overall_check {
+  my $self = shift;
+  my %params = @_;
+}
+
+
+package HP::Proliant::Component::AsrSubsystem::SNMP;
+our @ISA = qw(HP::Proliant::Component::AsrSubsystem
+    HP::Proliant::Component::SNMP);
+
+use strict;
+use constant { OK => 0, WARNING => 1, CRITICAL => 2, UNKNOWN => 3 };
+
+sub new {
+  my $class = shift;
+  my %params = @_;
+  my $self = {
+    runtime => $params{runtime},
+    rawdata => $params{rawdata},
+    blacklisted => 0,
+    info => undef,
+    extendedinfo => undef,
+  };
+  bless $self, $class;
+  $self->overall_init(%params);
+  return $self;
+}
+
+sub overall_init {
+  my $self = shift;
+  my %params = @_;
+  my $snmpwalk = $params{rawdata};
+  my $cpqHeAsrStatus = "1.3.6.1.4.1.232.6.2.5.1.0";
+  my $cpqHeAsrStatusValue = {
+    1 => "other",
+    2 => "notAvailable",
+    3 => "disabled",
+    4 => "enabled",
+  };
+  my $cpqHeAsrCondition = "1.3.6.1.4.1.232.6.2.5.17.0";
+  my $cpqHeAsrConditionValue = {
+    1 => "other",
+    2 => "ok",
+    3 => "degraded",
+    4 => "failed",
+  };
+  $self->{asrcondition} = SNMP::Utils::get_object_value(
+      $snmpwalk, $cpqHeAsrCondition,
+      $cpqHeAsrConditionValue);
+  $self->{asrstatus} = SNMP::Utils::get_object_value(
+      $snmpwalk, $cpqHeAsrStatus,
+      $cpqHeAsrStatusValue);
+  $self->{asrcondition} |= lc $self->{asrcondition};
+  $self->{asrstatus} |= lc $self->{asrstatus};
+}
+
+sub overall_check {
+  my $self = shift;
+  my $result = 0;
+  $self->blacklist('asr', '');
+  if ($self->{asrstatus} and $self->{asrstatus} eq "enabled") {
+    my $info = sprintf 'ASR overall condition is %s', $self->{asrcondition};
+    if ($self->{asrcondition} eq "degraded") {
+      $self->add_message(WARNING, $info);
+    } elsif ($self->{asrcondition} eq "failed") {
+      $self->add_message(CRITICAL, $info);
+    }
+    $self->add_info($info);
+  } else {
+    $self->add_info('This system does not have ASR.');
+  }
+}
+
+
+package HP::Proliant::Component::AsrSubsystem;
+our @ISA = qw(HP::Proliant::Component);
+
+use strict;
+use constant { OK => 0, WARNING => 1, CRITICAL => 2, UNKNOWN => 3 };
+
+sub new {
+  my $class = shift;
+  my %params = @_;
+  my $self = {
+    runtime => $params{runtime},
+    rawdata => $params{rawdata},
+    method => $params{method},
+    condition => $params{condition},
+    status => $params{status},
+    temperatures => [],
+    blacklisted => 0,
+    info => undef,
+    extendedinfo => undef,
+  };
+  bless $self, $class;
+  if ($self->{method} eq 'snmp') {
+    return HP::Proliant::Component::AsrSubsystem::SNMP->new(%params);
+  } elsif ($self->{method} eq 'cli') {
+    return HP::Proliant::Component::AsrSubsystem::CLI->new(%params);
+  } else {
+    die "unknown method";
+  }
+  return $self;
+}
+
+sub check {
+  my $self = shift;
+  my $errorfound = 0;
+  $self->add_info('checking ASR');
+  $self->overall_check(); 
+}
+
+sub dump {
+  my $self = shift;
+}
+
+
 
 
 package HP::Proliant::Component::SNMP;
@@ -2936,7 +4228,14 @@ sub init {
     next unless /^status/;
     next if /^status\s*$/;
     s/^status\s*//;
-    if (/([\s\w]+) in Slot\s+(\d+)/) {
+    if (/(MSA[\s\w]+)\s+in\s+(\w+)/) { 
+      $incontroller = 1;
+      $slot = $2;
+      $cntlindex++;
+      $tmpcntl->{$slot}->{cpqDaCntlrIndex} = $cntlindex;
+      $tmpcntl->{$slot}->{cpqDaCntlrModel} = $1;
+      $tmpcntl->{$slot}->{cpqDaCntlrSlot} = $slot;
+    } elsif (/([\s\w]+) in Slot\s+(\d+)/) {
       $incontroller = 1;
       $slot = $2;
       $cntlindex++;
@@ -2946,17 +4245,36 @@ sub init {
     } elsif (/Controller Status: (\w+)/) {
       $tmpcntl->{$slot}->{cpqDaCntlrBoardCondition} = lc $1;
       $tmpcntl->{$slot}->{cpqDaCntlrCondition} = lc $1;
-    } elsif (/Cache Status: (\w+)/) {
+    } elsif (/Cache Status: ([\w\s]+?)\s*$/) {
+      # Cache Status: OK
+      # Cache Status: Not Configured
+      # Cache Status: Temporarily Disabled
       $tmpaccel->{$slot}->{cpqDaAccelCntlrIndex} = $cntlindex;
       $tmpaccel->{$slot}->{cpqDaAccelSlot} = $slot;
-      $tmpaccel->{$slot}->{cpqDaAccelCondition} = lc $1;
-      $tmpaccel->{$slot}->{cpqDaAccelStatus} = 'enabled';
+      #condition: other,ok,degraded,failed
+      #status: other,invalid,enabled,tmpDisabled,permDisabled
+      $tmpaccel->{$slot}->{cpqDaAccelCondition} = lc $1; 
+      if ($tmpaccel->{$slot}->{cpqDaAccelCondition} eq 'ok') {
+        $tmpaccel->{$slot}->{cpqDaAccelStatus} = 'enabled';
+      } elsif ($tmpaccel->{$slot}->{cpqDaAccelCondition} eq 'not configured') {
+        $tmpaccel->{$slot}->{cpqDaAccelCondition} = 'ok';
+        $tmpaccel->{$slot}->{cpqDaAccelStatus} = 'enabled';
+      } elsif ($tmpaccel->{$slot}->{cpqDaAccelCondition} eq 'temporarily disabled') {
+        $tmpaccel->{$slot}->{cpqDaAccelCondition} = 'ok';
+        $tmpaccel->{$slot}->{cpqDaAccelStatus} = 'tmpDisabled';
+      } elsif ($tmpaccel->{$slot}->{cpqDaAccelCondition} eq 'permanently disabled') {
+        $tmpaccel->{$slot}->{cpqDaAccelCondition} = 'ok';
+        $tmpaccel->{$slot}->{cpqDaAccelStatus} = 'permDisabled';
+      } else {
+        $tmpaccel->{$slot}->{cpqDaAccelStatus} = 'enabled';
+      }
     } elsif (/Battery.* Status: (\w+)/) {
       # sowas gibts auch Battery/Capacitor Status: OK
       $tmpaccel->{$slot}->{cpqDaAccelBattery} = lc $1;
     } elsif (/^\s*$/) {
     }
   }
+  $slot = 0;
   $cntlindex = 0;
   $ldriveindex = 0;
   $pdriveindex = 0;
@@ -2964,9 +4282,17 @@ sub init {
     next unless /^config/;
     next if /^config\s*$/;
     s/^config\s*//;
-    if (/([\s\w]+) in Slot\s+(\d+)/) {
+    if (/(MSA[\s\w]+)\s+in\s+(\w+)/) {
       $slot = $2;
       $cntlindex++;
+      $pdriveindex = 1;
+    } elsif (/([\s\w]+) in Slot\s+(\d+)/) {
+      #if ($slot ne $2 || ! $slot) {
+        $cntlindex++;
+        # 2012-12-15 das passt nicht zur oberen schleife
+        # ich habe keine ahnung, was der hintergrund fuer dieses if ist
+      #}
+      $slot = $2;
       $pdriveindex = 1;
     } elsif (/logicaldrive\s+(.+?)\s+\((.*)\)/) {
       # logicaldrive 1 (683.5 GB, RAID 5, OK)
@@ -2985,6 +4311,7 @@ sub init {
     } elsif (/physicaldrive\s+(.+?)\s+\((.*)\)/) {
       # physicaldrive 2:0   (port 2:id 0 , Parallel SCSI, 36.4 GB, OK)
       # physicaldrive 2I:1:6 (port 2I:box 1:bay 6, SAS, 146 GB, OK)
+      # physicaldrive 1:1 (box 1:bay 1, Parallel SCSI, 146 GB, OK)
       my $name = $1;
       my($location, $type, $size, $status) = split(/,/, $2);
       $status =~ s/^\s+//g;
@@ -2997,6 +4324,7 @@ sub init {
       $location{box} ||= 0;
       $location{id} ||= $pdriveindex;
       $location{bay} ||= $location{id};
+      $location{port} ||= $location{bay};
       $tmppd->{$slot}->{$name}->{name} = lc $name;
       $tmppd->{$slot}->{$name}->{cpqDaPhyDrvCntlrIndex} = $cntlindex;
       $tmppd->{$slot}->{$name}->{cpqDaPhyDrvIndex} = $location{id};
@@ -3011,6 +4339,7 @@ sub init {
         $tmppd->{$slot}->{$name}->{$_} =~ s/\s+$//g;
         $tmppd->{$slot}->{$name}->{$_} = lc $tmppd->{$slot}->{$name}->{$_};
       }
+      $pdriveindex++;
     }
   }
 
@@ -3069,6 +4398,7 @@ sub identified {
   my $info = shift;
   return 1 if $info =~ /Parallel SCSI/;
   return 1 if $info =~ /Smart Array/; # Trond: works fine on E200i, P400, E400
+  return 1 if $info =~ /MSA500/;
   #return 1 if $info =~ /Smart Array (5|6)/;
   #return 1 if $info =~ /Smart Array P400i/; # snmp sagt Da, trotz SAS in cli
   #return 1 if $info =~ /Smart Array P410i/; # dto
@@ -3345,28 +4675,6 @@ sub check {
   my $self = shift;
 #$self->dumper($self);
   $self->blacklist('daco', $self->{cpqDaCntlrIndex});
-  if ($self->{cpqDaCntlrCondition} eq 'other') {
-    if (scalar(@{$self->{physical_drives}})) {
-      $self->add_message(CRITICAL,
-          sprintf 'da controller %s in slot %s needs attention', 
-              $self->{cpqDaCntlrIndex}, $self->{cpqDaCntlrSlot});
-      $self->add_info(sprintf 'da controller %s in slot %s needs attention',
-          $self->{cpqDaCntlrIndex}, $self->{cpqDaCntlrSlot});
-    } else {
-      $self->add_info(sprintf 'da controller %s in slot %s is ok and unused',
-          $self->{cpqDaCntlrIndex}, $self->{cpqDaCntlrSlot});
-      $self->{blacklisted} = 1;
-    }
-  } elsif ($self->{cpqDaCntlrCondition} ne 'ok') {
-    $self->add_message(CRITICAL,
-        sprintf 'da controller %s in slot %s needs attention', 
-            $self->{cpqDaCntlrIndex}, $self->{cpqDaCntlrSlot});
-    $self->add_info(sprintf 'da controller %s in slot %s needs attention',
-        $self->{cpqDaCntlrIndex}, $self->{cpqDaCntlrSlot});
-  } else {
-    $self->add_info(sprintf 'da controller %s in slot %s is ok', 
-        $self->{cpqDaCntlrIndex}, $self->{cpqDaCntlrSlot});
-  }
   foreach (@{$self->{accelerators}}) {
     $_->check();
   } 
@@ -3379,6 +4687,41 @@ sub check {
   foreach (@{$self->{spare_drives}}) {
     $_->check();
   } 
+  if ($self->{cpqDaCntlrCondition} eq 'other') {
+    if (scalar(@{$self->{physical_drives}})) {
+      $self->add_message(CRITICAL,
+          sprintf 'da controller %s in slot %s needs attention', 
+              $self->{cpqDaCntlrIndex}, $self->{cpqDaCntlrSlot});
+      $self->add_info(sprintf 'da controller %s in slot %s needs attention',
+          $self->{cpqDaCntlrIndex}, $self->{cpqDaCntlrSlot});
+    } else {
+      $self->add_info(sprintf 'da controller %s in slot %s is ok and unused',
+          $self->{cpqDaCntlrIndex}, $self->{cpqDaCntlrSlot});
+      $self->{blacklisted} = 1;
+    }
+  } elsif ($self->{cpqDaCntlrCondition} eq 'degraded') {
+    # maybe only the battery has failed and is disabled, no problem
+    if (scalar(grep {
+        $_->has_failed() && $_->is_disabled()
+    } @{$self->{accelerators}})) {
+      # message was already written in the accel code
+    } else {
+      $self->add_message(CRITICAL,
+          sprintf 'da controller %s in slot %s needs attention', 
+              $self->{cpqDaCntlrIndex}, $self->{cpqDaCntlrSlot});
+      $self->add_info(sprintf 'da controller %s in slot %s needs attention',
+          $self->{cpqDaCntlrIndex}, $self->{cpqDaCntlrSlot});
+    }
+  } elsif ($self->{cpqDaCntlrCondition} ne 'ok') {
+    $self->add_message(CRITICAL,
+        sprintf 'da controller %s in slot %s needs attention', 
+            $self->{cpqDaCntlrIndex}, $self->{cpqDaCntlrSlot});
+    $self->add_info(sprintf 'da controller %s in slot %s needs attention',
+        $self->{cpqDaCntlrIndex}, $self->{cpqDaCntlrSlot});
+  } else {
+    $self->add_info(sprintf 'da controller %s in slot %s is ok', 
+        $self->{cpqDaCntlrIndex}, $self->{cpqDaCntlrSlot});
+  }
 } 
 
 sub dump {
@@ -3420,6 +4763,7 @@ sub new {
     cpqDaAccelCondition => $params{cpqDaAccelCondition},
     cpqDaAccelStatus => $params{cpqDaAccelStatus},
     blacklisted => 0,
+    failed => 0,
   };
   $self->{controllerindex} = $self->{cpqDaAccelCntlrIndex};
   bless $self, $class;
@@ -3433,7 +4777,12 @@ sub check {
       $self->{cpqDaAccelCondition});
   if ($self->{cpqDaAccelStatus} ne "enabled") {
   } elsif ($self->{cpqDaAccelCondition} ne "ok") {
-    $self->add_message(CRITICAL, "controller accelerator needs attention");
+    if ($self->{cpqDaAccelBattery} eq "failed" &&
+        $self->{cpqDaAccelStatus} eq "tmpDisabled") {
+      # handled later
+    } else {
+      $self->add_message(CRITICAL, "controller accelerator needs attention");
+    }
   }
   $self->blacklist('daacb', $self->{cpqDaAccelCntlrIndex});
   $self->add_info(sprintf 'controller accelerator battery is %s',
@@ -3441,10 +4790,23 @@ sub check {
   if ($self->{cpqDaAccelBattery} eq "notPresent") {
   } elsif ($self->{cpqDaAccelBattery} eq "recharging") {
     $self->add_message(WARNING, "controller accelerator battery recharging");
+  } elsif ($self->{cpqDaAccelBattery} eq "failed" &&
+      $self->{cpqDaAccelStatus} eq "tmpDisabled") {
+    $self->add_message(WARNING, "controller accelerator battery needs attention");
   } elsif ($self->{cpqDaAccelBattery} ne "ok") {
     # (other) failed degraded
     $self->add_message(CRITICAL, "controller accelerator battery needs attention");
   } 
+}
+
+sub has_failed {
+  my $self = shift;
+  return $self->{cpqDaAccelStatus} =~ /Disabled/ ? 1 : 0;
+}
+
+sub is_disabled {
+  my $self = shift;
+  return $self->{cpqDaAccelStatus} =~ /Disabled/ ? 1 : 0;
 }
 
 sub dump {
@@ -3498,7 +4860,7 @@ sub check {
           $self->{cpqDaLogDrvFaultTol});
   if ($self->{cpqDaLogDrvCondition} ne "ok") {
     if ($self->{cpqDaLogDrvStatus} =~ 
-        /rebuild|recovering|expanding|queued/) {
+        /rebuild|recovering|recovery|expanding|queued/) {
       $self->add_message(WARNING,
           sprintf "logical drive %s is %s", 
               $self->{name}, $self->{cpqDaLogDrvStatus});
@@ -3583,8 +4945,10 @@ use constant { OK => 0, WARNING => 1, CRITICAL => 2, UNKNOWN => 3 };
 
 sub dump {
   my $self = shift;
-  printf "[LOGICAL_DRIVE]\n";
-  foreach (qw(cntrlcpqDaCntlrIndex cpqDaCntlrIndex size level status condition)) {
+  printf "[SPARE_DRIVE]\n";
+  foreach (qw(cpqDaPhyDrvCntlrIndex cpqDaPhyDrvIndex cpqDaPhyDrvBay
+      cpqDaPhyDrvBusNumber cpqDaPhyDrvSize cpqDaPhyDrvStatus
+      cpqDaPhyDrvCondition)) {
     printf "%s: %s\n", $_, $self->{$_};
   }
   printf "\n";
@@ -3814,6 +5178,7 @@ sub new {
 
 sub check {
   my $self = shift;
+  $self->blacklist('saco', $self->{cpqSasHbaSlot});
   if ($self->{cpqSasHbaCondition} eq 'other') {
     if (scalar(@{$self->{physical_drives}})) {
       $self->add_message(CRITICAL,
@@ -3899,6 +5264,7 @@ sub new {
 
 sub check {
   my $self = shift;
+  $self->blacklist('sald', $self->{name});
   if ($self->{cpqSasLogDrvCondition} ne "ok") {
     if ($self->{cpqSasLogDrvStatus} =~ 
         /rebuild|recovering|expanding|queued/) {
@@ -3956,6 +5322,7 @@ sub new {
 
 sub check {
   my $self = shift;
+  $self->blacklist('sapd', $self->{name});
   if ($self->{cpqSasPhyDrvCondition} ne 'ok') {
     $self->add_message(CRITICAL,
         sprintf "physical drive %s is %s", 
@@ -4837,6 +6204,9 @@ sub init {
       cpqFcaHostCntlrOverallCondition => '1.3.6.1.4.1.232.16.2.7.1.1.8',
       cpqFcaHostCntlrModelValue => {
           1 => "other",
+          # You may need to upgrade your driver software and\or instrument
+          # agent(s).  You have a drive array controller in the system
+          # that the instrument agent does not recognize.  (other according to CPQFCAL-MIB)
           2 => "fchc-p",
           3 => "fchc-e",
           4 => "fchc64",
@@ -4845,6 +6215,33 @@ sub init {
           7 => "sw64-33",
           8 => "fca-221x",
           9 => "dpfcmc",
+          10 => 'fca-2404',
+          11 => 'fca-2214',
+          12 => 'a7298a',
+          13 => 'fca-2214dc',
+          14 => 'a6826a',
+          15 => 'fcmcG3',
+          16 => 'fcmcG4',
+          17 => 'ab46xa',
+          18 => 'fc-generic',
+          19 => 'fca-1143',
+          20 => 'fca-1243',
+          21 => 'fca-2143',
+          22 => 'fca-2243',
+          23 => 'fca-1050',
+          24 => 'fca-lpe1105',
+          25 => 'fca-qmh2462',
+          26 => 'fca-1142sr',
+          27 => 'fca-1242sr',
+          28 => 'fca-2142sr',
+          29 => 'fca-2242sr',
+          30 => 'fcmc20pe',
+          31 => 'fca-81q',
+          32 => 'fca-82q',
+          33 => 'fca-qmh2562',
+          34 => 'fca-81e',
+          35 => 'fca-82e',
+          36 => 'fca-1205',
       },
       cpqFcaHostCntlrStatusValue => {
           1 => "other",
@@ -4853,6 +6250,7 @@ sub init {
           4 => "shutdown",
           5 => "loopDegraded",
           6 => "loopFailed",
+          7 => "notConnected",
       },
       cpqFcaHostCntlrConditionValue => {
           1 => "other",
@@ -4890,13 +6288,15 @@ sub init {
         6 => "hsv110", 
         7 => "msa500g2", 
         8 => "msa20",
+        8 => "msa1510i",
       },
       cpqFcaCntlrStatusValue => {
           1 => "other",
           2 => "ok",
           3 => "failed",
           4 => "offline",
-          4 => "redundantPathOffline",
+          5 => "redundantPathOffline",
+          6 => "notConnected",
       },
       cpqFcaCntlrConditionValue => {
           1 => "other",
@@ -5104,7 +6504,7 @@ sub new {
 
 sub assemble {
   my $self = shift;
-  $self->trace(3, sprintf "%s controllers und platten zusammenführen",
+  $self->trace(3, sprintf "%s controllers und platten zusammenfuehren",
       ref($self));
   $self->trace(3, sprintf "has %d host controllers", 
       scalar(@{$self->{host_controllers}}));
@@ -5181,7 +6581,10 @@ sub new {
 
 sub check {
   my $self = shift;
-  if ($self->{cpqFcaMibCondition} ne 'ok') {
+  if ($self->{cpqFcaMibCondition} eq 'other') {
+    $self->add_message(OK,
+        sprintf 'fcal overall condition is other, update your drivers, please');
+  } elsif ($self->{cpqFcaMibCondition} ne 'ok') {
     $self->add_message(CRITICAL, 
         sprintf 'fcal overall condition is %s', $self->{cpqFcaMibCondition});
   }
@@ -5227,8 +6630,9 @@ sub check {
   my $info = sprintf 'fcal host controller %s in slot %s is %s',
       $self->{name}, $self->{cpqFcaHostCntlrSlot}, $self->{cpqFcaHostCntlrCondition};
   if ($self->{cpqFcaHostCntlrCondition} eq 'other') {
-    $info .= sprintf ' and needs attention (%s)', $self->{cpqFcaHostCntlrStatus};
-    $self->add_message(CRITICAL, $info);
+    #$info .= sprintf ' and needs attention (%s)', $self->{cpqFcaHostCntlrStatus};
+    # let's assume other=ok
+    $self->add_message(OK, $info);
     $self->add_info($info);
   } elsif ($self->{cpqFcaHostCntlrCondition} ne 'ok') {
     $self->add_message(CRITICAL, $info);
@@ -5239,7 +6643,9 @@ sub check {
   $self->blacklist('fcahco', $self->{name});
   $info = sprintf 'fcal host controller %s overall condition is %s',
       $self->{name}, $self->{cpqFcaHostCntlrOverallCondition};
-  if ($self->{cpqFcaHostCntlrOverallCondition} ne 'ok') {
+  if ($self->{cpqFcaHostCntlrOverallCondition} eq 'other') {
+    $self->add_message(OK, $info);
+  } elsif ($self->{cpqFcaHostCntlrOverallCondition} ne 'ok') {
     $self->add_message(WARNING, $info);
   }
   $self->add_info($info);
@@ -5583,7 +6989,7 @@ sub disk_summary {
 
 sub assemble {
   my $self = shift;
-  $self->trace(3, sprintf "%s controllers und platten zusammenführen",
+  $self->trace(3, sprintf "%s controllers und platten zusammenfuehren",
       ref($self));
   $self->trace(3, sprintf "has %d controllers",
       scalar(@{$self->{controllers}}));
@@ -5666,7 +7072,10 @@ sub init {
       temperature_subsystem => undef,
       cpu_subsystem => undef,
       memory_subsystem => undef,
+      nic_subsystem => undef,
       disk_subsystem => undef,
+      asr_subsystem => undef,
+      event_subsystem => undef,
   };
   $self->{serial} = 'unknown';
   $self->{product} = 'unknown';
@@ -5681,19 +7090,29 @@ sub init {
     $self->analyze_fan_subsystem();
     $self->analyze_temperatures();
     $self->analyze_memory_subsystem();
+    $self->analyze_nic_subsystem();
     $self->analyze_disk_subsystem();
+    $self->analyze_asr_subsystem();
+    $self->analyze_event_subsystem();
     $self->auto_blacklist();
     $self->check_cpus();
     $self->check_powersupplies();
     $self->check_fan_subsystem();
     $self->check_temperatures();
     $self->check_memory_subsystem();
+    $self->check_nic_subsystem();
     $self->check_disk_subsystem();
+    $self->check_asr_subsystem();
+    $self->check_event_subsystem();
   }
 }
 
 sub identify {
   my $self = shift;
+  foreach (qw(product serial romversion)) {
+    $self->{$_} =~ s/^\s+//;
+    $self->{$_} =~ s/\s+$//;
+  }
   return sprintf "System: '%s', S/N: '%s', ROM: '%s'", 
       $self->{product}, $self->{serial}, $self->{romversion};
 }
@@ -5707,8 +7126,13 @@ sub check_for_buggy_firmware {
       "D13 09/15/2004",
       "P20 12/17/2002"
   );
-  $self->{runtime}->{options}->{buggy_firmware} =
-      grep /^$self->{romversion}/, @buggyfirmwares;
+  if ($self->{romversion} =~ /^\w+ \d+\/\d+\/\d+$/) {
+    $self->{runtime}->{options}->{buggy_firmware} =
+        grep /^$self->{romversion}/, @buggyfirmwares;
+  } else {
+    # nicht parsbarer schrott in cpqSeSysRomVer, gesehen bei Gen9
+    $self->{runtime}->{options}->{buggy_firmware} = undef;
+  }
 }
 
 sub dump {
@@ -5769,10 +7193,41 @@ sub analyze_memory_subsystem {
   );
 }
 
+sub analyze_nic_subsystem {
+  my $self = shift;
+  return if $self->{method} ne "snmp";
+  $self->{components}->{nic_subsystem} = 
+      HP::Proliant::Component::NicSubsystem->new(
+    rawdata => $self->{rawdata},
+    method => $self->{method},
+    runtime => $self->{runtime},
+  );
+}
+
 sub analyze_disk_subsystem {
   my $self = shift;
   $self->{components}->{disk_subsystem} =
       HP::Proliant::Component::DiskSubsystem->new(
+    rawdata => $self->{rawdata},
+    method => $self->{method},
+    runtime => $self->{runtime},
+  );
+}
+
+sub analyze_asr_subsystem {
+  my $self = shift;
+  $self->{components}->{asr_subsystem} =
+      HP::Proliant::Component::AsrSubsystem->new(
+    rawdata => $self->{rawdata},
+    method => $self->{method},
+    runtime => $self->{runtime},
+  );
+}
+
+sub analyze_event_subsystem {
+  my $self = shift;
+  $self->{components}->{event_subsystem} =
+      HP::Proliant::Component::EventSubsystem->new(
     rawdata => $self->{rawdata},
     method => $self->{method},
     runtime => $self->{runtime},
@@ -5814,6 +7269,15 @@ sub check_memory_subsystem {
       if $self->{runtime}->{options}->{verbose} >= 2;
 }
 
+sub check_nic_subsystem {
+  my $self = shift;
+  return if $self->{method} ne "snmp";
+  if ($self->{runtime}->{plugin}->{opts}->get('eval-nics')) {
+    $self->{components}->{nic_subsystem}->check();
+    $self->{components}->{nic_subsystem}->dump()
+        if $self->{runtime}->{options}->{verbose} >= 2;
+  }
+}
 sub check_disk_subsystem {
   my $self = shift;
   $self->{components}->{disk_subsystem}->check();
@@ -5823,6 +7287,20 @@ sub check_disk_subsystem {
   $self->{runtime}->{plugin}->add_message(OK,
       $self->{components}->{disk_subsystem}->{summary})
       if $self->{components}->{disk_subsystem}->{summary};
+}
+
+sub check_asr_subsystem {
+  my $self = shift;
+  $self->{components}->{asr_subsystem}->check();
+  $self->{components}->{asr_subsystem}->dump()
+      if $self->{runtime}->{options}->{verbose} >= 2;
+}
+
+sub check_event_subsystem {
+  my $self = shift;
+  $self->{components}->{event_subsystem}->check();
+  $self->{components}->{event_subsystem}->dump()
+      if $self->{runtime}->{options}->{verbose} >= 2;
 }
 
 sub auto_blacklist() {
@@ -5891,73 +7369,121 @@ EOEO
         $self->{runtime}->{plugin}->opts->hpasmcli : '/sbin/hpasmcli';
 # check if this exists at all
 # descend the directory
-    if ($< != 0) {
-      $hpasmcli = "sudo ".$hpasmcli;
+    if ($self->{runtime}->{plugin}->opts->hpasmcli &&
+        -e $self->{runtime}->{plugin}->opts->hpasmcli) {
+      $hpasmcli = $self->{runtime}->{plugin}->opts->hpasmcli;
+    } elsif (-e '/sbin/hpasmcli') {
+      $hpasmcli = '/sbin/hpasmcli';
+    } else {
+      $hpasmcli = undef;
     }
-    $self->trace(2, sprintf "calling %s\n", $hpasmcli);
-    $self->check_daemon();
-    if (! $self->{runtime}->{plugin}->check_messages()) {
-      $self->check_hpasm_client($hpasmcli);
+    if ($hpasmcli) {
+      if ($< != 0) {
+        close STDIN;
+        $hpasmcli = "sudo -S ".$hpasmcli;
+      }
+      $self->trace(2, sprintf "calling %s\n", $hpasmcli);
+      $self->check_daemon();
       if (! $self->{runtime}->{plugin}->check_messages()) {
-        foreach my $component (qw(server fans temp dimm powersupply)) {
-          if (open HPASMCLI, "$hpasmcli -s \"show $component\"|") {
-            my @output = <HPASMCLI>;
-            close HPASMCLI;
-            $self->{rawdata} .= join("\n", map {
-                $component.' '.$_;
-            } @output);
-          }
-        }
-        if ($self->{runtime}->{options}->{hpacucli}) { 
-          #1 oder 0. pfad selber finden
-          my $hpacucli = undef;
-          if (-e '/usr/sbin/hpacucli') {
-            $hpacucli = '/usr/sbin/hpacucli';
-          } elsif (-e '/usr/local/sbin/hpacucli') {
-            $hpacucli = '/usr/local/sbin/hpacucli';
-          } else {
-            $hpacucli = $hpasmcli;
-            $hpacucli =~ s/^sudo\s*//;
-            $hpacucli =~ s/hpasmcli/hpacucli/;
-            $hpacucli = -e $hpacucli ? $hpacucli : undef;
-          }
-          if ($hpacucli) {
-            if ($< != 0) {
-              $hpacucli = "sudo ".$hpacucli;
+        $self->check_hpasm_client($hpasmcli);
+        if (! $self->{runtime}->{plugin}->check_messages()) {
+          foreach my $component (qw(server fans temp dimm powersupply iml)) {
+            if (open HPASMCLI, "$hpasmcli -s \"show $component\" </dev/null |") {
+              my @output = <HPASMCLI>;
+              close HPASMCLI;
+              $self->{rawdata} .= join("\n", map {
+                  $component.' '.$_;
+              } @output);
             }
-            $self->trace(2, sprintf "calling %s\n", $hpacucli);
-            $self->check_hpacu_client($hpacucli);
-            if (! $self->{runtime}->{plugin}->check_messages()) {
-              if (open HPACUCLI, "$hpacucli ctrl all show config 2>&1|") {
-                my @output = <HPACUCLI>;
-                close HPACUCLI;
-                $self->{rawdata} .= join("\n", map {
-                    'config '.$_;
-                } @output);
-              }
-              if (open HPACUCLI, "$hpacucli ctrl all show status 2>&1|") {
-                my @output = <HPACUCLI>;
-                close HPACUCLI;
-                $self->{rawdata} .= join("\n", map {
-                    'status '.$_;
-                } @output);
-              }
-            }
-          } else {
-            if ($self->{runtime}->{options}->{noinstlevel} eq 'ok') {
-              $self->add_message(OK,
-                  'hpacucli is not installed. let\'s hope the best...');
+          }
+          if ($self->{runtime}->{options}->{hpacucli}) {
+            #1 oder 0. pfad selber finden
+            my $hpacucli = undef;
+            if (-e '/usr/sbin/hpacucli') {
+              $hpacucli = '/usr/sbin/hpacucli';
+            } elsif (-e '/usr/local/sbin/hpacucli') {
+              $hpacucli = '/usr/local/sbin/hpacucli';
             } else {
-              $self->add_message(
-                  uc $self->{runtime}->{options}->{noinstlevel},
-                  'hpacucli is not installed.');
+              $hpacucli = $hpasmcli;
+              $hpacucli =~ s/^sudo\s*//;
+              $hpacucli =~ s/hpasmcli/hpacucli/;
+              $hpacucli = -e $hpacucli ? $hpacucli : undef;
+            }
+            if ($hpacucli) {
+              if ($< != 0) {
+                close STDIN;
+                $hpacucli = "sudo -S ".$hpacucli;
+              }
+              $self->trace(2, sprintf "calling %s\n", $hpacucli);
+              $self->check_hpacu_client($hpacucli);
+              if (! $self->{runtime}->{plugin}->check_messages()) {
+                if (open HPACUCLI, "$hpacucli ctrl all show status 2>&1|") {
+                  my @output = <HPACUCLI>;
+                  close HPACUCLI;
+                  $self->{rawdata} .= join("\n", map {
+                      'status '.$_;
+                  } @output);
+                }
+                if (open HPACUCLI, "$hpacucli ctrl all show config 2>&1|") {
+                  my @output = <HPACUCLI>;
+                  close HPACUCLI;
+                  $self->{rawdata} .= join("\n", map {
+                      'config '.$_;
+                  } @output);
+                  if (grep /Syntax error at "config"/, @output) {
+                    # older version of hpacucli CLI 7.50.18.0
+                    foreach my $slot (0..10) {
+                      if (open HPACUCLI, "$hpacucli ctrl slot=$slot logicaldrive all show 2>&1|") {
+                        my @output = <HPACUCLI>;
+                        close HPACUCLI;
+                        $self->{rawdata} .= join("\n", map {
+                            'config '.$_;
+                        } @output);
+                      }
+                      if (open HPACUCLI, "$hpacucli ctrl slot=$slot physicaldrive all show 2>&1|") {
+                        my @output = <HPACUCLI>;
+                        close HPACUCLI;
+                        $self->{rawdata} .= join("\n", map {
+                            'config '.$_;
+                        } @output);
+                      }
+                    }
+                  }
+                }
+              } elsif ($self->{runtime}->{options}->{hpacucli} == 2) {
+                # we probably don't have sudo-privileges, but we were compiled with
+                # --enable-hpacucli=maybe
+                # so we cover it up in silence
+                $self->remove_message(UNKNOWN);
+                $self->trace(2, sprintf "calling %s seems to have failed, but nobody cares\n", $hpacucli);
+              }
+            } else {
+              if ($self->{runtime}->{options}->{noinstlevel} eq 'ok') {
+                $self->add_message(OK,
+                    'hpacucli is not installed. let\'s hope the best...');
+              } else {
+                $self->add_message(
+                    uc $self->{runtime}->{options}->{noinstlevel},
+                    'hpacucli is not installed.');
+              }
             }
           }
         }
       }
+    } else {
+      if ($self->{runtime}->{options}->{noinstlevel} eq 'ok') {
+        $self->add_message(OK,
+            'hpasm is not installed, i can only guess');
+        $self->{noinst_hint} = 1;
+      } else {
+        $self->add_message(
+            uc $self->{runtime}->{options}->{noinstlevel},
+            'hpasmcli is not installed.');
+      }
     }
   }
 }
+
 
 sub check_daemon {
   my $self = shift;
@@ -5993,9 +7519,9 @@ sub check_daemon {
       }
     }
     if ($numcliprocs == 1) {
-      $self->add_message(UNKNOWN, 'another hpasmdcli is running');
+      $self->add_message(UNKNOWN, 'another hpasmcli is running');
     } elsif ($numcliprocs > 1) {
-      $self->add_message(UNKNOWN, 'hanging hpasmdcli processes');
+      $self->add_message(UNKNOWN, 'hanging hpasmcli processes');
     }
   }
 }
@@ -6038,7 +7564,7 @@ sub check_hpacu_client {
     } elsif (grep /(asswor[dt]:)|(You must be root)/, @output) {
       $self->add_message(UNKNOWN,
           sprintf "insufficient rights to call %s", $hpacucli);
-    } elsif (! grep /CLI Syntax/, @output) {
+    } elsif (! grep /(CLI Syntax)|(ACU CLI)/, @output) {
       $self->add_message(UNKNOWN,
           sprintf "insufficient rights to call %s", $hpacucli);
     }
@@ -6062,6 +7588,9 @@ sub set_serial {
   $self->{serial} = $self->{serial};
   $self->{product} = lc $self->{product};
   $self->{romversion} = $self->{romversion};
+  foreach (qw(serial product romversion)) {
+    $self->{$_} =~ s/\s+$//g;
+  }
 }
 
 
@@ -6074,6 +7603,36 @@ our @ISA = qw(HP::Proliant);
 
 sub collect {
   my $self = shift;
+  my %oidtables = (
+      system =>            "1.3.6.1.2.1.1",
+      cpqSeProcessor =>    "1.3.6.1.4.1.232.1.2.2",
+      cpqHePWSComponent => "1.3.6.1.4.1.232.6.2.9",
+      cpqHeThermal =>      "1.3.6.1.4.1.232.6.2.6",
+      cpqHeMComponent =>   "1.3.6.1.4.1.232.6.2.14",
+      cpqDaComponent =>    "1.3.6.1.4.1.232.3.2",
+      cpqSiComponent =>    "1.3.6.1.4.1.232.2.2",
+      cpqSeRom =>          "1.3.6.1.4.1.232.1.2.6",
+      cpqSasComponent =>   "1.3.6.1.4.1.232.5",
+      cpqIdeComponent =>   "1.3.6.1.4.1.232.14",
+      cpqFcaComponent =>   "1.3.6.1.4.1.232.16.2",
+      cpqHeAsr =>          "1.3.6.1.4.1.232.6.2.5",
+      cpqNic =>            "1.3.6.1.4.1.232.18.2",
+      cpqHeEventLog =>     "1.3.6.1.4.1.232.6.2.11",
+
+      #    cpqHeComponent =>  "1.3.6.1.4.1.232.6.2",
+      #    cpqHeFComponent => "1.3.6.1.4.1.232.6.2.6.7",
+      #    cpqHeTComponent => "1.3.6.1.4.1.232.6.2.6.8",
+  );
+  my %oidvalues = (
+      cpqHeEventLogSupported => "1.3.6.1.4.1.232.6.2.11.1.0",
+      cpqHeEventLogCondition => "1.3.6.1.4.1.232.6.2.11.2.0",
+      cpqNicIfLogMapOverallCondition => "1.3.6.1.4.1.232.18.2.2.2.0",
+      cpqHeThermalTempStatus => "1.3.6.1.4.1.232.6.2.6.3.0",
+      cpqHeThermalSystemFanStatus => "1.3.6.1.4.1.232.6.2.6.4.0",
+      cpqHeThermalCpuFanStatus => "1.3.6.1.4.1.232.6.2.6.5.0",
+      cpqHeAsrStatus => "1.3.6.1.4.1.232.6.2.5.1.0",
+      cpqHeAsrCondition => "1.3.6.1.4.1.232.6.2.5.17.0",
+  );
   if ($self->{runtime}->{plugin}->opts->snmpwalk) {
     my $cpqSeMibCondition = '1.3.6.1.4.1.232.1.1.3.0'; # 2=ok
     my $cpqHeMibCondition = '1.3.6.1.4.1.232.6.1.3.0'; # hat nicht jeder
@@ -6086,6 +7645,27 @@ sub collect {
         $self->add_message(CRITICAL,
             'snmpwalk returns no health data (cpqhlth-mib)');
     }
+    $self->{fullrawdata} = {};
+    %{$self->{fullrawdata}} = %{$self->{rawdata}};
+    $self->{rawdata} = {};
+    if (! $self->{runtime}->{plugin}->check_messages()) {
+      # for a better simulation, only put those oids into 
+      # rawdata which would also be put by a real snmp agent.
+      foreach my $table (keys %oidtables) {
+        my $oid = $oidtables{$table};
+        $oid =~ s/\./\\./g;
+        my $tmpoids = {};
+        my $tic = time;
+        map { $tmpoids->{$_} = $self->{fullrawdata}->{$_} }
+            grep /^$oid/, %{$self->{fullrawdata}};
+        my $tac = time;
+        $self->trace(2, sprintf "%03d seconds for walk %s (%d oids)",
+            $tac - $tic, $table, scalar(keys %{$tmpoids}));
+        map { $self->{rawdata}->{$_} = $tmpoids->{$_} } keys %{$tmpoids};
+      }
+      my @oids = values %oidvalues;
+      map { $self->{rawdata}->{$_} = $self->{fullrawdata}->{$_} } @oids;
+    }
   } else {
     my $net_snmp_version = Net::SNMP->VERSION(); # 5.002000 or 6.000000
     #$params{'-translate'} = [
@@ -6097,6 +7677,7 @@ sub collect {
       $self->{plugin}->add_message(CRITICAL, 'cannot create session object');
       $self->trace(1, Data::Dumper::Dumper($self->{runtime}->{snmpparams}));
     } else {
+      $session->translate(['-timeticks' => 0]);
       # revMajor is often used for discovery of hp devices
       my $cpqHeMibRev = '1.3.6.1.4.1.232.6.1';
       my $cpqHeMibRevMajor = '1.3.6.1.4.1.232.6.1.1.0';
@@ -6126,147 +7707,34 @@ sub collect {
       # snmp peer is alive
       $self->trace(2, sprintf "Protocol is %s", 
           $self->{runtime}->{snmpparams}->{'-version'});
-      my $cpqStdEquipment = "1.3.6.1.4.1.232";
-      my $cpqSeProcessor =  "1.3.6.1.4.1.232.1.2.2";
-      my $cpqSeRom =        "1.3.6.1.4.1.232.1.2.6";
-      my $cpqHeComponent =  "1.3.6.1.4.1.232.6.2";
-      my $cpqHePWSComponent = "1.3.6.1.4.1.232.6.2.9";
-      my $cpqHeThermal = "1.3.6.1.4.1.232.6.2.6";
-      #my $cpqHeFComponent = "1.3.6.1.4.1.232.6.2.6.7";
-      #my $cpqHeTComponent = "1.3.6.1.4.1.232.6.2.6.8";
-      my $cpqHeMComponent = "1.3.6.1.4.1.232.6.2.14";
-      my $cpqDaComponent =  "1.3.6.1.4.1.232.3.2";
-      my $cpqSasComponent =  "1.3.6.1.4.1.232.5";
-      my $cpqIdeComponent =  "1.3.6.1.4.1.232.14";
-      my $cpqFcaComponent =  "1.3.6.1.4.1.232.16.2";
-      my $cpqSiComponent =  "1.3.6.1.4.1.232.2.2";
       $session->translate;
       my $response = {}; #break the walk up in smaller pieces
-      my $tic = time; my $tac = $tic;
-      my $response1 = $session->get_table(
-          -baseoid => $cpqSeProcessor);
-      $tac = time;
-      $self->trace(2, sprintf "%03d seconds for walk cpqSeProcessor (%d oids)",
-          $tac - $tic, scalar(keys %{$response1}));
-      # Walk for PowerSupply
-      $tic = time;
-      my $response2p = $session->get_table(
-          -maxrepetitions => 1,
-          -baseoid => $cpqHePWSComponent);
-      if (scalar (keys %{$response2p}) == 0) {
-        $self->trace(2, sprintf "maxrepetitions failed. fallback");
-        $response2p = $session->get_table(
-            -baseoid => $cpqHePWSComponent);
+      foreach my $table (keys %oidtables) {
+        my $oid = $oidtables{$table};
+        my $tic = time;
+        my $tmpresponse = $session->get_table(
+            -baseoid => $oid);
+        if (scalar (keys %{$tmpresponse}) == 0) {
+          $self->trace(2, sprintf "maxrepetitions failed. fallback");
+          $tmpresponse = $session->get_table(
+              -maxrepetitions => 1,
+              -baseoid => $oid);
+        }
+        my $tac = time;
+        $self->trace(2, sprintf "%03d seconds for walk %s (%d oids)",
+            $tac - $tic, $table, scalar(keys %{$tmpresponse}));
+        map { $response->{$_} = $tmpresponse->{$_} } keys %{$tmpresponse};
       }
-      $tac = time;
-      $self->trace(2, sprintf "%03d seconds for walk cpqHePWSComponent (%d oids)",
-          $tac - $tic, scalar(keys %{$response2p}));
-
-      # Walk for Fans/Temp/Overall
-      $tic = time;
-      my $response2f = $session->get_table(
-          -maxrepetitions => 1,
-          -baseoid => $cpqHeThermal);
-      if (scalar (keys %{$response2f}) == 0) {
-        $self->trace(2, sprintf "maxrepetitions failed. fallback");
-        $response2f = $session->get_table(
-            -baseoid => $cpqHeThermal);
-      }
-      $tac = time;
-      $self->trace(2, sprintf "%03d seconds for walk cpqHeThermal (%d oids)",
-          $tac - $tic, scalar(keys %{$response2f}));
-
-#      # Walk for Fans
-#      $tic = time;
-#      my $response2f = $session->get_table(
-#          -maxrepetitions => 1,
-#          -baseoid => $cpqHeFComponent);
-#      if (scalar (keys %{$response2f}) == 0) {
-#        $self->trace(2, sprintf "maxrepetitions failed. fallback");
-#        $response2f = $session->get_table(
-#            -baseoid => $cpqHeFComponent);
-#      }
-#      $tac = time;
-#      $self->trace(2, sprintf "%03d seconds for walk cpqHeFComponent (%d oids)",
-#          $tac - $tic, scalar(keys %{$response2f}));
-#      # Walk for Temp
-#      $tic = time;
-#      my $response2t = $session->get_table(
-#          -maxrepetitions => 1,
-#          -baseoid => $cpqHeTComponent);
-#      if (scalar (keys %{$response2t}) == 0) {
-#        $self->trace(2, sprintf "maxrepetitions failed. fallback");
-#        $response2t = $session->get_table(
-#            -baseoid => $cpqHeTComponent);
-#      }
-#      $tac = time;
-#      $self->trace(2, sprintf "%03d seconds for walk cpqHeTComponent (%d oids)",
-#          $tac - $tic, scalar(keys %{$response2t}));
-      # Walk for Mem
-      $tic = time;
-      my $response2m = $session->get_table(
-          -maxrepetitions => 1,
-          -baseoid => $cpqHeMComponent);
-      if (scalar (keys %{$response2m}) == 0) {
-        $self->trace(2, sprintf "maxrepetitions failed. fallback");
-        $response2m = $session->get_table(
-            -baseoid => $cpqHeMComponent);
-      }
-      $tac = time;
-      $self->trace(2, sprintf "%03d seconds for walk cpqHeMComponent (%d oids)",
-          $tac - $tic, scalar(keys %{$response2m}));
-      #
-      $tic = time;
-      my $response3 = $session->get_table(
-          -baseoid => $cpqDaComponent);
-      $tac = time;
-      $self->trace(2, sprintf "%03d seconds for walk cpqDaComponent (%d oids)",
-          $tac - $tic, scalar(keys %{$response3}));
-      $tic = time;
-      my $response4 = $session->get_table(
-          -baseoid => $cpqSiComponent);
-      $tac = time;
-      $self->trace(2, sprintf "%03d seconds for walk cpqSiComponent (%d oids)",
-          $tac - $tic, scalar(keys %{$response4}));
-      $tic = time;
-      my $response5 = $session->get_table(
-          -baseoid => $cpqSeRom);
-      $tac = time;
-      $self->trace(2, sprintf "%03d seconds for walk cpqSeRom (%d oids)",
-          $tac - $tic, scalar(keys %{$response5}));
-      $tic = time;
-      my $response6 = $session->get_table(
-          -baseoid => $cpqSasComponent);
-      $tac = time;
-      $self->trace(2, sprintf "%03d seconds for walk cpqSasComponent (%d oids)",
-          $tac - $tic, scalar(keys %{$response6}));
-      $tic = time;
-      my $response7 = $session->get_table(
-          -baseoid => $cpqIdeComponent);
-      $tac = time;
-      $self->trace(2, sprintf "%03d seconds for walk cpqIdeComponent (%d oids)",
-          $tac - $tic, scalar(keys %{$response7}));
-      $tic = time;
-      my $response8 = $session->get_table(
-          -baseoid => $cpqFcaComponent);
-      $tac = time;
-      $self->trace(2, sprintf "%03d seconds for walk cpqFcaComponent (%d oids)",
-          $tac - $tic, scalar(keys %{$response8}));
-      $tic = time;
-      $session->close;
-      map { $response->{$_} = $response1->{$_} } keys %{$response1};
-      map { $response->{$_} = $response2p->{$_} } keys %{$response2p};
-      map { $response->{$_} = $response2f->{$_} } keys %{$response2f};
-#      map { $response->{$_} = $response2t->{$_} } keys %{$response2t};
-      map { $response->{$_} = $response2m->{$_} } keys %{$response2m};
-      map { $response->{$_} = $response3->{$_} } keys %{$response3};
-      map { $response->{$_} = $response4->{$_} } keys %{$response4};
-      map { $response->{$_} = $response5->{$_} } keys %{$response5};
-      map { $response->{$_} = $response6->{$_} } keys %{$response6};
-      map { $response->{$_} = $response7->{$_} } keys %{$response7};
-      map { $response->{$_} = $response8->{$_} } keys %{$response8};
-      map { $response->{$_} =~ s/^\s+//; $response->{$_} =~ s/\s+$//; }
-          keys %$response;
+      my @oids = values %oidvalues;
+      my $tic = time;
+      my $tmpresponse = $session->get_request(
+          -varbindlist => \@oids,
+      );
+      my $tac = time;
+      $self->trace(2, sprintf "%03d seconds for get various (%d oids)",
+          $tac - $tic, scalar(keys %{$tmpresponse}));
+      map { $response->{$_} = $tmpresponse->{$_} } keys %{$tmpresponse};
+      $session->close();
       $self->{rawdata} = $response;
     }
   }
@@ -6279,6 +7747,7 @@ sub set_serial {
   my $cpqSiSysSerialNum = "1.3.6.1.4.1.232.2.2.2.1.0";
   my $cpqSiProductName = "1.3.6.1.4.1.232.2.2.4.2.0";
   my $cpqSeSysRomVer = "1.3.6.1.4.1.232.1.2.6.1.0";
+  my $cpqSeRedundantSysRomVer = "1.3.6.1.4.1.232.1.2.6.4.0";
 
   $self->{serial} = 
       SNMP::Utils::get_object($self->{rawdata}, $cpqSiSysSerialNum);
@@ -6286,6 +7755,8 @@ sub set_serial {
       SNMP::Utils::get_object($self->{rawdata}, $cpqSiProductName);
   $self->{romversion} =
       SNMP::Utils::get_object($self->{rawdata}, $cpqSeSysRomVer);
+  $self->{redundantromversion} =
+      SNMP::Utils::get_object($self->{rawdata}, $cpqSeRedundantSysRomVer);
   if ($self->{romversion} && $self->{romversion} =~
       #/(\d{2}\/\d{2}\/\d{4}).*?([ADP]{1}\d{2}).*/) {
       /(\d{2}\/\d{2}\/\d{4}).*?Family.*?([A-Z]{1})(\d+).*/) {
@@ -6293,6 +7764,18 @@ sub set_serial {
   } elsif ($self->{romversion} && $self->{romversion} =~
       /([ADP]{1}\d{2})\-(\d{2}\/\d{2}\/\d{4})/) {
     $self->{romversion} = sprintf("%s %s", $1, $2);
+  } else {
+    # fallback if romversion is broken, redundantromversion not
+    #.1.3.6.1.4.1.232.1.2.6.1.0 = STRING: "4), Family "
+    #.1.3.6.1.4.1.232.1.2.6.3.0 = ""
+    #.1.3.6.1.4.1.232.1.2.6.4.0 = STRING: "v1.20 (08/26/2014), Family "
+    if ($self->{redundantromversion} && $self->{redundantromversion} =~
+        /(\d{2}\/\d{2}\/\d{4}).*?Family.*?([A-Z]{1})(\d+).*/) {
+      $self->{romversion} = sprintf("%s%02d %s", $2, $3, $1);
+    } elsif ($self->{redundantromversion} && $self->{redundantromversion} =~
+        /([ADP]{1}\d{2})\-(\d{2}\/\d{2}\/\d{4})/) {
+      $self->{romversion} = sprintf("%s %s", $1, $2);
+    }
   }
   if (!$self->{serial} && $self->{romversion}) {
     # this probably is a very, very old server.
@@ -6674,10 +8157,10 @@ sub init {
       cpqRackCommonEnclosureTempSensorIndex => '1.3.6.1.4.1.232.22.2.3.1.2.1.3',
       cpqRackCommonEnclosureTempSensorEnclosureName => '1.3.6.1.4.1.232.22.2.3.1.2.1.4',
       cpqRackCommonEnclosureTempLocation => '1.3.6.1.4.1.232.22.2.3.1.2.1.5',
-      cpqRackCommonEnclosureTempCurrent => '1.3.6.1.4.1.232.22.2.3.12.1.6',
+      cpqRackCommonEnclosureTempCurrent => '1.3.6.1.4.1.232.22.2.3.1.2.1.6',
       cpqRackCommonEnclosureTempThreshold => '1.3.6.1.4.1.232.22.2.3.1.2.1.7',
       cpqRackCommonEnclosureTempCondition => '1.3.6.1.4.1.232.22.2.3.1.2.1.8',
-      cpqRackCommonEnclosureTempType => '1.3.6.1.4.1.232.22.2.3.12.1.9',
+      cpqRackCommonEnclosureTempType => '1.3.6.1.4.1.232.22.2.3.1.2.1.9',
       cpqRackCommonEnclosureTempConditionValue => {
           1 => 'other',
           2 => 'ok',
@@ -6695,7 +8178,7 @@ sub init {
   #         cpqRackCommonEnclosureTempSensorIndex }
   foreach ($self->get_entries($oids, 'cpqRackCommonEnclosureTempEntry')) {
     push(@{$self->{temperatures}},
-       HP::BladeSystem::Component::CommonEnclosureSubsystem::TemperatureSubsystem::Temperature->new(%{$_}));
+       HP::BladeSystem::Component::CommonEnclosureSubsystem::TempSubsystem::Temp->new(%{$_}))  if (($_->{cpqRackCommonEnclosureTempCurrent} != -1 && $_->{cpqRackCommonEnclosureTempThreshold} != -1) && ($_->{cpqRackCommonEnclosureTempThreshold} != 0));
   }
 
 }
@@ -6731,6 +8214,9 @@ sub new {
   my $class = shift;
   my %params = @_;
   my $self = {
+    runtime => $params{runtime},
+    rawdata => $params{rawdata},
+    method => $params{method},
     blacklisted => 0,
     info => undef,
     extendedinfo => undef,
@@ -6748,13 +8234,16 @@ sub check {
   $self->blacklist('t', $self->{name});
   if ($self->{cpqRackCommonEnclosureTempCurrent} > $self->{cpqRackCommonEnclosureTempThreshold}) {
     $self->add_info(sprintf "%s temperature too high (%d%s)",
-        $self->{cpqRackCommonEnclosureTempLocation}, $self->{cpqRackCommonEnclosureTempCurrent},
+        $self->{cpqRackCommonEnclosureTempLocation},
+        $self->{cpqRackCommonEnclosureTempCurrent},
         $self->{runtime}->{options}->{celsius} ? "C" : "F");
     $self->add_message(CRITICAL, $self->{info});
   } else {
-    $self->add_info(sprintf "%d %s temperature is %d (%d max)",
-        $self->{name}, $self->{    cpqRackCommonEnclosureTempLocation},
-        $self->{cpqRackCommonEnclosureTempCurrent}, $self->{cpqRackCommonEnclosureTempThreshold});
+    $self->add_info(sprintf "%s temperature is %d%s (%d max)",
+        $self->{cpqRackCommonEnclosureTempLocation},
+        $self->{cpqRackCommonEnclosureTempCurrent},
+        $self->{runtime}->{options}->{celsius} ? "C" : "F",
+        $self->{cpqRackCommonEnclosureTempThreshold});
   }
   if ($self->{runtime}->{options}->{perfdata} == 2) {
     $self->{runtime}->{plugin}->add_perfdata(
@@ -6765,10 +8254,11 @@ sub check {
     );
   } elsif ($self->{runtime}->{options}->{perfdata} == 1) {
     $self->{runtime}->{plugin}->add_perfdata(
-        label => sprintf('temp_%s_%s', $self->{name}, $self->{location}),
-        value => $self->{degrees},
-        warning => $self->{threshold},
-        critical => $self->{threshold}
+        label => sprintf('temp_%s_%s', $self->{name},
+            $self->{cpqRackCommonEnclosureTempLocation}),
+        value => $self->{cpqRackCommonEnclosureTempCurrent},
+        warning => $self->{cpqRackCommonEnclosureTempThreshold},
+        critical => $self->{cpqRackCommonEnclosureTempThreshold}
     );
   }
   $self->add_extendedinfo(sprintf "temp_%s=%d", 
@@ -6953,13 +8443,13 @@ sub init {
       cpqRackCommonEnclosureManagerRedundant => '1.3.6.1.4.1.232.22.2.3.1.6.1.11',
       cpqRackCommonEnclosureManagerCondition => '1.3.6.1.4.1.232.22.2.3.1.6.1.12',
       cpqRackCommonEnclosureManagerFWRev => '1.3.6.1.4.1.232.22.2.3.1.6.1.15',
-      cpqRackCommonEnclosureManagerRole => {
+      cpqRackCommonEnclosureManagerRoleValue => {
           1 => 'standby',
           2 => 'active',
       },
       cpqRackCommonEnclosureManagerPresentValue => {
           1 => 'other',
-          2 => 'absent',
+          2 => 'absent', # mit vorsicht zu geniessen!
           3 => 'present',
       },
       cpqRackCommonEnclosureManagerRedundantValue => {
@@ -7021,6 +8511,10 @@ sub new {
   $self->{name} = $self->{cpqRackCommonEnclosureManagerRack}.
       ':'.$self->{cpqRackCommonEnclosureManagerChassis}.
       ':'.$self->{cpqRackCommonEnclosureManagerIndex};
+  if ($self->{cpqRackCommonEnclosureManagerPresent} eq "absent" &&
+      defined $self->{cpqRackCommonEnclosureManagerEnclosureName}) {
+    $self->{cpqRackCommonEnclosureManagerPresent} = "present";
+  }
   bless $self, $class;
   return $self;
 }
@@ -7028,11 +8522,12 @@ sub new {
 sub check {
   my $self = shift;
   $self->blacklist('em', $self->{name});
-  my $info = sprintf 'manager %s is %s, location is %s, redundance is %s, condition is %s',
+  my $info = sprintf 'manager %s is %s, location is %s, redundance is %s, condition is %s, role is %s',
       $self->{name}, $self->{cpqRackCommonEnclosureManagerPresent},
       $self->{cpqRackCommonEnclosureManagerLocation},
       $self->{cpqRackCommonEnclosureManagerRedundant},
-      $self->{cpqRackCommonEnclosureManagerCondition};
+      $self->{cpqRackCommonEnclosureManagerCondition},
+      $self->{cpqRackCommonEnclosureManagerRole};
   $self->add_info($info) if $self->{cpqRackCommonEnclosureManagerPresent} eq 'present' ||
       $self->{runtime}->{options}->{verbose} >= 3; # absent managers nur bei -vvv
   if ($self->{cpqRackCommonEnclosureManagerCondition} eq 'degraded') {
@@ -7054,7 +8549,7 @@ sub dump {
       cpqRackCommonEnclosureManagerLocation cpqRackCommonEnclosureManagerPartNumber 
       cpqRackCommonEnclosureManagerSparePartNumber cpqRackCommonEnclosureManagerPresent 
       cpqRackCommonEnclosureManagerRedundant 
-      cpqRackCommonEnclosureManagerCondition cpqRackCommonEnclosureManagerEnclosureFWRev)) {
+      cpqRackCommonEnclosureManagerCondition cpqRackCommonEnclosureManagerFWRev)) {
     printf "%s: %s\n", $_, $self->{$_};
   }
   printf "info: %s\n", $self->{info};
@@ -7281,7 +8776,6 @@ sub init {
  
  
   # INDEX { cpqRackPowerSupplyRack, cpqRackPowerSupplyChassis, cpqRackPowerSupplyIndex }
-  # dreckada dreck, dreckada
   foreach ($self->get_entries($oids, 'cpqRackPowerSupplyEntry')) {
     push(@{$self->{power_supplies}},
         HP::BladeSystem::Component::PowerSupplySubsystem::PowerSupply->new(%{$_}));
@@ -7290,9 +8784,50 @@ sub init {
 
 sub check {
   my $self = shift;
+  my $total_current_watt = 0;
+  my $total_max_watt = 0;
+  my $total_in_temp = 0;
+  my $total_out_temp = 0;
+  my $num_ps = 0;
   foreach (@{$self->{power_supplies}}) {
     $_->check() if $_->{cpqRackPowerSupplyPresent} eq 'present' ||
         $self->{runtime}->{options}->{verbose} >= 3; # absent nur bei -vvv
+    if ($_->{cpqRackPowerSupplyPresent} eq 'present') {
+      $total_max_watt += $_->{cpqRackPowerSupplyMaxPwrOutput};
+      $total_current_watt += $_->{cpqRackPowerSupplyCurPwrOutput};
+      $total_in_temp += $_->{cpqRackPowerSupplyIntakeTemp} 
+          if $_->{cpqRackPowerSupplyIntakeTemp} != -1;
+      $total_out_temp += $_->{cpqRackPowerSupplyExhaustTemp}
+          if $_->{cpqRackPowerSupplyExhaustTemp} != -1;
+      $num_ps++;
+    }
+  }
+  $self->{runtime}->{plugin}->add_perfdata(
+      label => 'watt_total',
+      value => $total_current_watt,
+      warning => $total_max_watt,
+      critical => $total_max_watt,
+  );
+  #$self->{runtime}->{plugin}->add_perfdata(
+  #    label => 'watt_total_pct',
+  #    value => ($total_current_watt == 0 ? 0 :
+  #        sprintf("%.2f",
+  #        ($total_current_watt / $total_max_watt * 100))),
+  #    warning => 100,
+  #    critical => 100,
+  #    uom => '%',
+  #);
+  if ($total_in_temp) {
+    $self->{runtime}->{plugin}->add_perfdata(
+        label => 'in_temp',
+        value => $total_in_temp / $num_ps,
+    );
+  }
+  if ($total_out_temp) {
+    $self->{runtime}->{plugin}->add_perfdata(
+        label => 'out_temp',
+        value => $total_out_temp / $num_ps,
+    );
   }
 }
 
@@ -7352,6 +8887,36 @@ sub check {
           $self->{name}, $self->{cpqRackPowerSupplyStatus},
           $self->{cpqRackPowerSupplySupplyInputLineStatus});
     } 
+    if ($self->{runtime}->{options}->{perfdata} != 2) {
+      $self->{runtime}->{plugin}->add_perfdata(
+          label => sprintf('watt_%s', $self->{name}),
+          value => $self->{cpqRackPowerSupplyCurPwrOutput},
+          warning => $self->{cpqRackPowerSupplyMaxPwrOutput},
+          critical => $self->{cpqRackPowerSupplyMaxPwrOutput}
+      );
+      #$self->{runtime}->{plugin}->add_perfdata(
+      #    label => sprintf('watt_pct_%s', $self->{name}),
+      #    value => ($self->{cpqRackPowerSupplyCurPwrOutput} == 0 ? 0 :
+      #        sprintf ("%.2f",
+      #        ($self->{cpqRackPowerSupplyCurPwrOutput} /
+      #        $self->{cpqRackPowerSupplyMaxPwrOutput} * 100))),
+      #    warning => 100,
+      #    critical => 100,
+      #    uom => '%',
+      #);
+      if ($self->{cpqRackPowerSupplyIntakeTemp} != -1) {
+        $self->{runtime}->{plugin}->add_perfdata(
+            label => sprintf('in_temp_%s', $self->{name}),
+            value => $self->{cpqRackPowerSupplyIntakeTemp},
+        );
+      }
+      if ($self->{cpqRackPowerSupplyExhaustTemp} != -1) {
+        $self->{runtime}->{plugin}->add_perfdata(
+            label => sprintf('out_temp_%s', $self->{name}),
+            value => $self->{cpqRackPowerSupplyExhaustTemp},
+        );
+      }
+    }
   }
 } 
   
@@ -7623,6 +9188,7 @@ sub new {
       ':'.$self->{cpqRackServerBladeIndex};
   bless $self, $class;
   $self->init();
+#printf "%s\n", Data::Dumper::Dumper(\%params);
   return $self;
 }
 
@@ -7634,11 +9200,11 @@ sub check {
       $self->{cpqRackServerBladeStatus}, $self->{cpqRackServerBladePowered};
   $self->add_info($info);
   if ($self->{cpqRackServerBladePowered} eq 'on') {
-    if ($self->{cpqRackServerBladeCondition} eq 'degraded') {
+    if ($self->{cpqRackServerBladeStatus} eq 'degraded') {
       $self->add_message(WARNING, sprintf 'server blade %s diag is \'%s\', post status is %s',
           $self->{cpqRackServerBladeName}, $self->{cpqRackServerBladeDiagnosticString},
           $self->{cpqRackServerBladePOSTStatus});
-    } elsif ($self->{cpqRackServerBladeCondition} eq 'failed') {
+    } elsif ($self->{cpqRackServerBladeStatus} eq 'failed') {
       $self->add_message(CRITICAL, sprintf 'server blade %s diag is \'%s\', post status is %s',
           $self->{cpqRackServerBladeName}, $self->{cpqRackServerBladeDiagnosticString},
           $self->{cpqRackServerBladePOSTStatus});
@@ -7843,40 +9409,42 @@ sub collect {
       # snmp peer is alive
       $self->trace(2, sprintf "Protocol is %s",
           $self->{runtime}->{snmpparams}->{'-version'});
+      my $oidtrees = [
+          ["cpqSiComponent", "1.3.6.1.4.1.232.2.2"],
+          ["cpqSiAsset", "1.3.6.1.4.1.232.2.2.2"],
+          #["cpqRackInfo", "1.3.6.1.4.1.232.22"],
+          ['cpqRackCommonEnclosureEntry', '1.3.6.1.4.1.232.22.2.3.1.1.1'],
+          ['cpqRackCommonEnclosureTempEntry', '1.3.6.1.4.1.232.22.2.3.1.2.1'],
+          ['cpqRackCommonEnclosureFanEntry', '1.3.6.1.4.1.232.22.2.3.1.3.1'],
+          ['cpqRackCommonEnclosureFuseEntry', '1.3.6.1.4.1.232.22.2.3.1.4.1'],
+          ['cpqRackCommonEnclosureManagerEntry', '1.3.6.1.4.1.232.22.2.3.1.6.1'],
+          ['cpqRackPowerEnclosureEntry', '1.3.6.1.4.1.232.22.2.3.3.1.1'],
+          ['cpqRackServerBladeEntry', '1.3.6.1.4.1.232.22.2.4.1.1.1'],
+          ['cpqRackPowerSupplyEntry', '1.3.6.1.4.1.232.22.2.5.1.1.1'],
+          ['cpqRackNetConnectorEntry', '1.3.6.1.4.1.232.22.2.6.1.1.1'],
+          ['cpqRackMibCondition', '1.3.6.1.4.1.232.22.1.3.0'],
+      ];
       my $cpqSiComponent = "1.3.6.1.4.1.232.2.2";
       my $cpqSiAsset = "1.3.6.1.4.1.232.2.2.2";
       my $cpqRackInfo = "1.3.6.1.4.1.232.22";
       $session->translate;
       my $response = {}; #break the walk up in smaller pieces
-      my $tic = time; my $tac = $tic;
-      # Walk for Asset
-      $tic = time;
-      my $response0 = $session->get_table(
-          -maxrepetitions => 1,
-          -baseoid => $cpqSiComponent);
-      if (scalar (keys %{$response0}) == 0) {
-        $self->trace(2, sprintf "maxrepetitions failed. fallback");
-        $response0 = $session->get_table(
-            -baseoid => $cpqSiComponent);
+      foreach my $subtree (@{$oidtrees}) {
+          my $tic = time; my $tac = $tic;
+          my $response0 = $session->get_table(
+              -baseoid => $subtree->[1]);
+          if (scalar (keys %{$response0}) == 0) {
+            $self->trace(2, sprintf "maxrepetitions failed. fallback");
+            $response0 = $session->get_table(
+                -maxrepetitions => 1,
+                -baseoid => $subtree->[1]);
+          }
+          $tac = time;
+          $self->trace(2, sprintf "%03d seconds for walk %s (%d oids)",
+              $tac - $tic, $subtree->[0], scalar(keys %{$response0}));
+          map { $response->{$_} = $response0->{$_} } keys %{$response0};
       }
-      $tac = time;
-      $self->trace(2, sprintf "%03d seconds for walk cpqSiComponent (%d oids)",
-          $tac - $tic, scalar(keys %{$response0}));
-      $tic = time;
-      my $response1 = $session->get_table(
-          -maxrepetitions => 1,
-          -baseoid => $cpqRackInfo);
-      if (scalar (keys %{$response1}) == 0) {
-        $self->trace(2, sprintf "maxrepetitions failed. fallback");
-        $response1 = $session->get_table(
-            -baseoid => $cpqRackInfo);
-      }
-      $tac = time;
-      $self->trace(2, sprintf "%03d seconds for walk cpqRackInfo (%d oids)",
-          $tac - $tic, scalar(keys %{$response1}));
       $session->close;
-      map { $response->{$_} = $response0->{$_} } keys %{$response0};
-      map { $response->{$_} = $response1->{$_} } keys %{$response1};
       map { $response->{$_} =~ s/^\s+//; $response->{$_} =~ s/\s+$//; }
           keys %$response;
       $self->{rawdata} = $response;
@@ -7919,6 +9487,7 @@ sub init {
       cpu_subsystem => undef,
       memory_subsystem => undef,
       disk_subsystem => undef,
+      sensor_subsystem => undef,
   };
   $self->{serial} = 'unknown';
   $self->{product} = 'unknown';
@@ -7933,12 +9502,14 @@ sub init {
 #    $self->analyze_temperatures();
 #    $self->analyze_memory_subsystem();
     $self->analyze_disk_subsystem();
+##    $self->analyze_sensor_subsystem();
 #    $self->check_cpus();
 #    $self->check_powersupplies();
 #    $self->check_fan_subsystem();
 #    $self->check_temperatures();
 #    $self->check_memory_subsystem();
     $self->check_disk_subsystem();
+##    $self->check_sensor_subsystem();
   }
 }
 
@@ -8029,6 +9600,16 @@ sub analyze_disk_subsystem {
   );
 }
 
+sub analyze_sensor_subsystem {
+  my $self = shift;
+  $self->{components}->{sensor_subsystem} =
+      HP::FCMGMT::Component::SensorSubsystem->new(
+    rawdata => $self->{rawdata},
+    method => $self->{method},
+    runtime => $self->{runtime},
+  );
+}
+
 sub check_cpus {
   my $self = shift;
   $self->{components}->{cpu_subsystem}->check();
@@ -8068,6 +9649,13 @@ sub check_disk_subsystem {
   my $self = shift;
   $self->{components}->{disk_subsystem}->check();
   $self->{components}->{disk_subsystem}->dump()
+      if $self->{runtime}->{options}->{verbose} >= 1;
+}
+
+sub check_sensor_subsystem {
+  my $self = shift;
+  $self->{components}->{isensor_subsystem}->check();
+  $self->{components}->{sensor_subsystem}->dump()
       if $self->{runtime}->{options}->{verbose} >= 1;
 }
 
@@ -8190,6 +9778,163 @@ sub set_serial {
 
 
 
+package HP::StorageWorks;
+
+use strict;
+use constant { OK => 0, WARNING => 1, CRITICAL => 2, UNKNOWN => 3 };
+use Data::Dumper;
+
+our @ISA = qw(HP::Server);
+
+sub init {
+  my $self = shift;
+  $self->{serial} = 'unknown';
+  $self->{product} = 'unknown';
+  $self->{romversion} = 'unknown';
+  $self->collect();
+  if (! $self->{runtime}->{plugin}->check_messages()) {
+    $self->set_serial();
+    $self->overall_init();
+    $self->overall_check();
+  }
+}
+
+sub overall_init {
+  my $self = shift;
+  my %params = @_;
+  my $snmpwalk = $self->{rawdata};
+  my $cpqHoMibStatusArray = '1.3.6.1.4.1.232.11.2.10.1.0';
+  $self->{cpqHoMibStatusArray} = SNMP::Utils::get_object(
+      $snmpwalk, $cpqHoMibStatusArray);
+  if ($self->{cpqHoMibStatusArray} =~ /^(\d+)\s+(\d+)\s+(\d+)\s+(\d+)/) {
+    $self->{cpqHoMibStatusArray} = 1 * $2;
+  } elsif ($self->{cpqHoMibStatusArray} =~ /^0x.*(\d\d)(\d\d)(\d\d)(\d\d)$/) {
+    $self->{cpqHoMibStatusArray} = 1 * $2;
+  }
+}
+
+sub overall_check {
+  my $self = shift;
+  if ($self->{cpqHoMibStatusArray} & 1) {
+    $self->add_info('overall status is other');
+    $self->add_message(UNKNOWN, 'overall status is other');
+  } elsif ($self->{cpqHoMibStatusArray} & 2) {
+    $self->add_info('overall status is ok');
+    $self->add_message(OK, 'overall status is ok');
+  } elsif ($self->{cpqHoMibStatusArray} & 3) {
+    $self->add_info('overall status is degraded');
+    $self->add_message(WARNING, 'overall status is degraded');
+  } elsif ($self->{cpqHoMibStatusArray} & 4) {
+    $self->add_info('overall status is failed');
+    $self->add_message(CRITICAL, 'overall status is failed');
+  }
+}
+
+sub identify {
+  my $self = shift;
+  return $self->{productname};
+}
+
+sub dump {
+  my $self = shift;
+  printf STDERR "serial %s\n", $self->{serial};
+  printf STDERR "product %s\n", $self->{product};
+  printf STDERR "romversion %s\n", $self->{romversion};
+  printf STDERR "%s\n", Data::Dumper::Dumper($self->{components});
+}
+
+sub collect {
+  my $self = shift;
+  if ($self->{runtime}->{plugin}->opts->snmpwalk) {
+    my $cpqHoMibStatusArray = '1.3.6.1.4.1.232.11.2.10.1.0';
+    if (! exists $self->{rawdata}->{$cpqHoMibStatusArray}) {
+        $self->add_message(CRITICAL,
+            'snmpwalk returns no health data (cpqhost-mib)');
+    }
+  } else {
+    my $net_snmp_version = Net::SNMP->VERSION(); # 5.002000 or 6.000000
+    #$params{'-translate'} = [
+    #  -all => 0x0
+    #];
+    my ($session, $error) = 
+        Net::SNMP->session(%{$self->{runtime}->{snmpparams}});
+    if (! defined $session) {
+      $self->{plugin}->add_message(CRITICAL, 'cannot create session object');
+      $self->trace(1, Data::Dumper::Dumper($self->{runtime}->{snmpparams}));
+    }
+    if (! $self->{runtime}->{plugin}->check_messages()) {
+      # snmp peer is alive
+      $self->trace(2, sprintf "Protocol is %s", 
+          $self->{runtime}->{snmpparams}->{'-version'});
+      my $cpqHoMibStatusArray = '1.3.6.1.4.1.232.11.2.10.1.0';
+      $session->translate;
+      my $tic = time;
+      my $response = $session->get_request(
+          -varbindlist => [$cpqHoMibStatusArray]
+      );
+      my $tac = time;
+      $self->trace(2, sprintf "%03d seconds for walk cpqHoMibStatusArray (%d oids)",
+          $tac - $tic, scalar(keys %{$response}));
+      $session->close;
+      map { $response->{$_} =~ s/^\s+//; $response->{$_} =~ s/\s+$//; }
+          keys %$response;
+      $self->{rawdata} = $response;
+    }
+  }
+  return $self->{runtime}->{plugin}->check_messages();
+}
+
+sub set_serial {
+  my $self = shift;
+  my $snmpwalk = $self->{rawdata};
+  my @serials = ();
+  my @models = ();
+  my @fws = ();
+  my $cpqSsBackplaneEntry = '1.3.6.1.4.1.232.8.2.2.6.1';
+  my $cpqSsBackplaneFWRev = '1.3.6.1.4.1.232.8.2.2.6.1.3';
+  my $cpqSsBackplaneModel = '1.3.6.1.4.1.232.8.2.2.6.1.9';
+  my $cpqSsBackplaneSerialNumber = '1.3.6.1.4.1.232.8.2.2.6.1.13';
+  # INDEX { cpqSsBackplaneChassisIndex, cpqSsBackplaneIndex }
+  my @indexes = SNMP::Utils::get_indices($snmpwalk,
+      $cpqSsBackplaneEntry);
+  foreach (@indexes) {
+    my($idx1, $idx2) = ($_->[0], $_->[1]);
+    my $fw = SNMP::Utils::get_object($snmpwalk,
+        $cpqSsBackplaneFWRev, $idx1, $idx2);
+    my $model = SNMP::Utils::get_object($snmpwalk,
+        $cpqSsBackplaneModel, $idx1, $idx2);
+    my $serial = SNMP::Utils::get_object($snmpwalk,
+        $cpqSsBackplaneSerialNumber, $idx1, $idx2);
+    push(@serials, $serial);
+    push(@models, $model);
+    push(@fws, $fw);
+  }
+  
+  $self->{serial} = join('/', @serials);
+  $self->{product} = join('/', @models);
+  $self->{romversion} = join('/', @fws);
+  $self->{runtime}->{product} = $self->{product};
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 package HP::Server;
 
 use strict;
@@ -8221,6 +9966,9 @@ sub new {
       if ($self->{productname} =~ /ProLiant/) {
         bless $self, 'HP::Proliant::SNMP';
         $self->trace(3, 'using HP::Proliant::SNMP');
+      } elsif ($self->{productname} =~ /^DL\d+\s*G\d+/) {
+        bless $self, 'HP::Proliant::SNMP';
+        $self->trace(3, 'using HP::Proliant::SNMP');
       } elsif ($self->{productname} =~ /OpenView .* appliance/) {
         bless $self, 'HP::Proliant::SNMP';
         $self->trace(3, 'using HP::Proliant::SNMP');
@@ -8230,6 +9978,17 @@ sub new {
       } elsif ($self->{productname} =~ /PROLIANT 4LEE/) {
         bless $self, 'HP::Storage';
         $self->trace(3, 'using HP::Storage');
+      } elsif ($self->{productname} =~ /X\d+[\s\w]* Network Storage/) {
+        # HP X1600 Network Storage System
+        # HP X1600 G2 Network Storage System
+        bless $self, 'HP::Proliant::SNMP';
+        $self->trace(3, 'using HP::Proliant::SNMP');
+      } elsif ($self->{productname} =~ /StorageWorks/i) {
+        bless $self, 'HP::StorageWorks';
+        $self->trace(3, 'using HP::StorageWorks');
+      } elsif ($self->{productname} =~ /StoreEasy/i) {
+        bless $self, 'HP::Proliant::SNMP';
+        $self->trace(3, 'using HP::Proliant::SNMP');
       } elsif ($self->{productname} =~ /Storage/) { # fake
         bless $self, 'HP::Storage';
         $self->trace(3, 'using HP::Storage');
@@ -8277,18 +10036,48 @@ sub check_snmp_and_model {
       close WALK;
     } else {
       open(MESS, $self->{runtime}->{plugin}->opts->snmpwalk);
+      my $in_string = 0;
+      my $in_hex_string = 0;
+      my $hex_oid = 0;
       while(<MESS>) {
-        # SNMPv2-SMI::enterprises.232.6.2.6.7.1.3.1.4 = INTEGER: 6
-        if (/^.*?\.(232\.[\d\.]+) = .*?: (\-*\d+)/) {
+        chomp;
+        if ($in_hex_string && /^(([0-9a-fA-F]{2})( [0-9a-fA-F]{2})*)\s*$/) {
+          $response->{$hex_oid} .= " ".$1;
+        } elsif ($in_string) {
+          if (/(.*)"$/) {
+            $response->{$hex_oid} .= $1;
+            $in_string = 0;
+          } else {
+            $response->{$hex_oid} .= $_;
+          }
+        } elsif (/^.*?\.(232\.[\d\.]+) = .*?: (\-*\d+)\s*$/) {
+          # SNMPv2-SMI::enterprises.232.6.2.6.7.1.3.1.4 = INTEGER: 6
           $response->{'1.3.6.1.4.1.'.$1} = $2;
+          $in_hex_string = 0;
         } elsif (/^.*?\.(232\.[\d\.]+) = .*?: "(.*?)"/) {
           $response->{'1.3.6.1.4.1.'.$1} = $2;
           $response->{'1.3.6.1.4.1.'.$1} =~ s/\s+$//;
-        } if (/^.*?\.(232\.[\d\.]+) = (\-*\d+)/) {
+          $in_hex_string = 0;
+        } elsif (/^.*?\.(232\.[\d\.]+) = (\-*\d+)/) {
           $response->{'1.3.6.1.4.1.'.$1} = $2;
+          $in_hex_string = 0;
         } elsif (/^.*?\.(232\.[\d\.]+) = "(.*?)"/) {
           $response->{'1.3.6.1.4.1.'.$1} = $2;
           $response->{'1.3.6.1.4.1.'.$1} =~ s/\s+$//;
+          $in_hex_string = 0;
+        } elsif (/^.*?\.(232\.[\d\.]+) = STRING: "(.*?[^"])$/) {
+          $response->{'1.3.6.1.4.1.'.$1} = $2;
+          $response->{'1.3.6.1.4.1.'.$1} =~ s/\s+$//;
+          $in_string = 0;
+          $in_hex_string = 0;
+        } elsif (/^.*?\.(232\.[\d\.]+) = Hex-STRING: (.*)/) {
+          $response->{'1.3.6.1.4.1.'.$1} = $2;
+          $in_hex_string = 1;
+          $hex_oid = '1.3.6.1.4.1.'.$1;
+        } elsif (/^.*?\.(232\.[\d\.]+) =[ ]{1,2}Hex: (.*)/) {
+          $response->{'1.3.6.1.4.1.'.$1} = $2;
+          $in_hex_string = 1;
+          $hex_oid = '1.3.6.1.4.1.'.$1;
         }
       }
       close MESS;
@@ -8301,9 +10090,9 @@ sub check_snmp_and_model {
     if (eval "require Net::SNMP") {
       my %params = ();
       my $net_snmp_version = Net::SNMP->VERSION(); # 5.002000 or 6.000000
-      #$params{'-translate'} = [
-      #  -all => 0x0
-      #];
+      $params{'-translate'} = [
+        -timeticks => 0x0
+      ];
       $params{'-hostname'} = $self->{runtime}->{plugin}->opts->hostname;
       $params{'-version'} = $self->{runtime}->{plugin}->opts->protocol;
       if ($self->{runtime}->{plugin}->opts->port) {
@@ -8312,25 +10101,25 @@ sub check_snmp_and_model {
       if ($self->{runtime}->{plugin}->opts->protocol eq '3') {
         $params{'-username'} = $self->{runtime}->{plugin}->opts->username;
         if ($self->{runtime}->{plugin}->opts->authpassword) {
-          $params{'-authpassword'} = $self->{runtime}->{plugin}->opts->authpassword;
+          $params{'-authpassword'} = $self->decode_password($self->{runtime}->{plugin}->opts->authpassword);
         }
         if ($self->{runtime}->{plugin}->opts->authprotocol) {
           $params{'-authprotocol'} = $self->{runtime}->{plugin}->opts->authprotocol;
         }
         if ($self->{runtime}->{plugin}->opts->privpassword) {
-          $params{'-privpassword'} = $self->{runtime}->{plugin}->opts->privpassword;
+          $params{'-privpassword'} = $self->decode_password($self->{runtime}->{plugin}->opts->privpassword);
         }
         if ($self->{runtime}->{plugin}->opts->privprotocol) {
           $params{'-privprotocol'} = $self->{runtime}->{plugin}->opts->privprotocol;
         }
       } else {
-        $params{'-community'} = $self->{runtime}->{plugin}->opts->community;
+        $params{'-community'} = $self->decode_password($self->{runtime}->{plugin}->opts->community);
       }
       $self->{runtime}->{snmpparams} = \%params;
       my ($session, $error) = Net::SNMP->session(%params);
       $self->{session} = $session;
       if (! defined $session) {
-        $self->{plugin}->add_message(CRITICAL, 'cannot create session object');
+        $self->add_message(CRITICAL, 'cannot create session object (maybe wrong hostname)');
         $self->trace(1, Data::Dumper::Dumper(\%params));
       } else {
         my $sysUpTime = '1.3.6.1.2.1.1.3.0';
@@ -8360,6 +10149,7 @@ sub whoami {
     my $cpqSiProductName = '1.3.6.1.4.1.232.2.2.4.2.0';
     my $cpqSsMibRevMajor = '1.3.6.1.4.1.232.8.1.1.0';
     my $cpqSsBackplaneModel = '1.3.6.1.4.1.232.8.2.2.6.1.9'.'.1.1';
+    my $cpqHoMibStatusArray = '1.3.6.1.4.1.232.11.2.10.1.0';
     if ($productname = $self->{rawdata}->{$cpqSiProductName}) {
       if (! $productname) {
         $self->{productname} = 'ProLiant';
@@ -8379,6 +10169,7 @@ sub whoami {
     my $cpqSiProductName = '1.3.6.1.4.1.232.2.2.4.2.0';
     my $cpqSsMibRevMajor = '1.3.6.1.4.1.232.8.1.1.0';
     my $cpqSsBackplaneModel = '1.3.6.1.4.1.232.8.2.2.6.1.9'.'.1.1';
+    my $cpqHoMibStatusArray = '1.3.6.1.4.1.232.11.2.10.1.0';
     my $dummy = '1.3.6.1.2.1.1.5.0';
     if ($productname = $self->valid_response($cpqSiProductName)) {
       if ($productname eq '') {
@@ -8391,6 +10182,8 @@ sub whoami {
     } elsif ($self->valid_response($cpqSsMibRevMajor)) {
       # at least there is a CPQSTSYS-MIB
       $self->{productname} = 'Storage'
+    } elsif ($self->valid_response($cpqHoMibStatusArray)) {
+      $self->{productname} = 'StorageWorks'
     } else {
       $self->add_message(CRITICAL,
           'snmpwalk returns no product name (cpqsinfo-mib)');
@@ -8447,7 +10240,7 @@ sub is_blacklisted {
   my $blacklisted = 0;
 #  $name =~ s/\:/-/g;
   foreach my $bl_items (split(/\//, $self->{runtime}->{options}->{blacklist})) {
-    if ($bl_items =~ /^(\w+):([\:\d\-,]+)$/) {
+    if ($bl_items =~ /^(\w+):([\:\w\-,]+)$/) {
       my $bl_type = $1;
       my $bl_names = $2;
       foreach my $bl_name (split(/,/, $bl_names)) {
@@ -8471,6 +10264,25 @@ sub add_message {
   my $message = shift;
   $self->{runtime}->{plugin}->add_message($level, $message) 
       unless $self->{blacklisted};
+  if (exists $self->{failed}) {
+    if ($level == UNKNOWN && $self->{failed} == OK) {
+      $self->{failed} = $level;
+    } elsif ($level > $self->{failed}) {
+      $self->{failed} = $level;
+    }
+  }
+}
+
+sub remove_message {
+  my $self = shift;
+  my $level = shift;
+  my $message = shift;
+  $self->{runtime}->{plugin}->remove_message($level) ;
+}
+
+sub has_failed {
+  my $self = shift;
+  return $self->{failed};
 }
 
 sub add_info {
@@ -8536,16 +10348,27 @@ sub dumper {
   printf STDERR "%s\n", Data::Dumper::Dumper($object);
   $object->{runtime} = $run;
 }
+
+sub decode_password {
+  my $self = shift;
+  my $password = shift;
+  if ($password && $password =~ /^rfc3986:\/\/(.*)/) {
+    $password = $1;
+    $password =~ s/\%([A-Fa-f0-9]{2})/pack('C', hex($1))/seg;
+  }
+  return $password;
+}
+
 package main;
 #! /usr/bin/perl
 
 use strict;
 
 my $CELSIUS = 1;
-my $PERFDATA = 1;
-my $EXTENDEDINFO = 1;
+my $PERFDATA = 0;
+my $EXTENDEDINFO = 0;
 my $HWINFO = 1;
-my $HPACUCLI = 1;
+my $HPACUCLI = 0;
 my $NOINSTLEVEL = 'unknown';
 
 use constant OK         => 0;
@@ -8559,7 +10382,7 @@ my $plugin = Nagios::MiniPlugin->new(
     usage => 'Usage: %s [ -v|--verbose ] [ -t <timeout> ] '.
         '--hostname <proliant> --community <snmp-community>'.
         '  ...]',
-    version => '4.2',
+    version => '4.7.1.1',
     blurb => 'This plugin checks the hardware of hp/compaq proliant servers',
     url => 'http://labs.consol.de/nagios/check_hpasm',
     timeout => 60,
@@ -8588,6 +10411,13 @@ $plugin->add_arg(
     spec => 'customthresholds|c=s',
     help => '--customthresholds
    Use custom thresholds for certain temperatures',
+    required => 0,
+);
+$plugin->add_arg(
+    spec => 'eventrange=s',
+    help => '--eventrange=<warningrange>/<criticalrange>
+   Period of time before critical IML events respecively become warnings or vanish
+   A range is descibed as a number and a unit (s, m, h, d), e.g. --eventrange 1h/20m',
     required => 0,
 );
 $plugin->add_arg(
@@ -8673,6 +10503,12 @@ $plugin->add_arg(
    The type of the server: proliant (default) or bladesystem',
     required => 0,
 );
+$plugin->add_arg(
+    spec => 'eval-nics',
+    help => '--eval-nics
+   Check network interfaces (and groups). Try it and report me whyt you think about it. I need to build up some know how on this subject. If get an error and you think, it is not justified for your configuration, please tell me about it. (alwasy send the output of "snmpwalk -On .... 1.3.6.1.4.1.232" and a description how you setup your nics and why it is correct opposed to the plugins error message',
+    required => 0,
+);
 
 $plugin->getopts();
 if (! $PERFDATA && $plugin->opts->get('perfdata')) {
@@ -8685,6 +10521,14 @@ if ($PERFDATA && $plugin->opts->get('perfdata') &&
 $plugin->{messages}->{unknown} = []; # wg. add_message(UNKNOWN,...)
 
 $plugin->{info} = []; # gefrickel
+
+$SIG{'ALRM'} = sub {
+  printf "UNKNOWN - check_hpasm timed out after %d seconds\n", 
+      $plugin->opts->get('timeout');
+  exit $ERRORS{UNKNOWN};
+};
+alarm($plugin->opts->get('timeout'));
+
 my $server = HP::Server->new( runtime => {
     plugin => $plugin,
     options => {
@@ -8694,6 +10538,7 @@ my $server = HP::Server->new( runtime => {
         ignore_fan_redundancy => $plugin->opts->get('ignore-fan-redundancy'),
         ignore_dimms => $plugin->opts->get('ignore-dimms'),
         customthresholds => $plugin->opts->get('customthresholds'),
+        eventrange => $plugin->opts->get('eventrange'),
         blacklist => $plugin->opts->get('blacklist'),
         celsius => $CELSIUS,
         perfdata => $PERFDATA,

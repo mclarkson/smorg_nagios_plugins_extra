@@ -13,7 +13,7 @@ Release: 1.12
 License: GPL
 Group: Applications/System
 Source: smorg-nagios-plugins-extra-1.tar.gz
-Requires: bash, grep, smorg-nagios-plugins, bc, sysstat, bind-utils
+Requires: bash, grep, smorg-nagios-plugins, bc, sysstat, bind-utils, perl-Nagios-Plugin, perl-IO-Socket-SSL, perl-XML-Simple
 # PreReq: sh-utils
 BuildRoot: %{_tmppath}/%{name}-buildroot
 Packager: Mark Clarkson
@@ -41,6 +41,7 @@ install -m 4755 check_puppet_wrapper ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/ch
 install -m 4755 check_nagios_config_wrapper ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_nagios_config_wrapper
 install -m 755 SqlJobMon.class ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/SqlJobMon.class
 install -m 755 check_all_diskstat.sh ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_all_diskstat.sh
+install -m 755 check_cluster_table ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_cluster_table
 install -m 755 check_cpu.sh ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_cpu.sh
 install -m 755 check_crl_bulk ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_crl_bulk
 install -m 755 check_dell_bladechassis ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_dell_bladechassis
@@ -98,6 +99,8 @@ install -m 755 check_cisco_snmp.pl ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/chec
 install -m 755 check_switch_ifs_zeroconf ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_switch_ifs_zeroconf
 install -m 755 check_switch_module ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_switch_module
 install -m 755 check_switch_psu ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_switch_psu
+install -m 755 check_yum ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_yum
+install -m 755 check_yum_wrapper ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_yum_wrapper
 
 
 %files
@@ -105,9 +108,11 @@ install -m 755 check_switch_psu ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_s
 %_libdir/nagios/plugins/check_logfiles_wrapper
 %_libdir/nagios/plugins/check_nagios_config_wrapper
 %_libdir/nagios/plugins/check_puppet_wrapper
+%_libdir/nagios/plugins/check_yum_wrapper
 %defattr(755,root,root,755)
 %_libdir/nagios/plugins/SqlJobMon.class
 %_libdir/nagios/plugins/check_all_diskstat.sh
+%_libdir/nagios/plugins/check_cluster_table
 %_libdir/nagios/plugins/check_cpu.sh
 %_libdir/nagios/plugins/check_crl_bulk
 %_libdir/nagios/plugins/check_dell_bladechassis
@@ -164,6 +169,7 @@ install -m 755 check_switch_psu ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_s
 %_libdir/nagios/plugins/check_switch_ifs_zeroconf
 %_libdir/nagios/plugins/check_switch_module
 %_libdir/nagios/plugins/check_switch_psu
+%_libdir/nagios/plugins/check_yum
 %dir %_libdir
 
 %clean

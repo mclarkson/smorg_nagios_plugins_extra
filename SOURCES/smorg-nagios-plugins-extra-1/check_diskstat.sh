@@ -1,5 +1,6 @@
 #!/bin/bash
 # Original Author: Unknown
+#
 # Changes: 25-Feb-2013 Mark Clarkson <mark.clarkson@smorg.co.uk>
 #          Added brief option to reduce size of output
 #          Added current user to cache file name. Allows other users
@@ -12,6 +13,15 @@
 #           avgqu-sz - average queue size, and
 #           await    - The average time (in milliseconds) for I/O requests
 #                      issued to the device to be served.
+# Changes: 12-Jul-2013 Mark Clarkson <mark.clarkson@smorg.co.uk>
+#          Added support for logical volume names.
+# Changes: 17-Aug-2014 Michal Svamberg <svamberg@civ.zcu.cz>
+#          Added support for symlinks used in /dev/disk/*
+# Changes: 05-Nov-2014 Michal Svamberg <svamberg@civ.zcu.cz>
+#          Fix when too much devices, translate hex output of stat to decimal
+# Changes: 04-Jun-2015 Michal Svamberg <svamberg@civ.zcu.cz>
+#          Fix overflowing counters
+
 
 DISK=
 WARNING=
@@ -23,44 +33,51 @@ E_CRITICAL=2
 E_UNKNOWN=3
 
 BRIEF=0
+SILENT=0
 
 show_help() {
     echo
-	echo "$0 -d DEVICE [ -w tps,read,write -c tps,read,write ] "
+    echo "$0 -d DEVICE [ -w tps,read,write -c tps,read,write ] "
     echo "    | [ -W qlen -C qlen ] | -h"
-	echo
-	echo "This plug-in is used to be alerted when maximum hard drive io/s, sectors"
+    echo
+    echo "This plug-in is used to be alerted when maximum hard drive io/s, sectors"
     echo "read|write/s or average queue length is reached."
-	echo
-	echo "  -d DEVICE            DEVICE must be without /dev (ex: -d sda)"
-	echo "  -w/c TPS,READ,WRITE  TPS means transfer per seconds (aka IO/s)"
-	echo "                       READ and WRITE are in sectors per seconds"
+    echo
+    echo "  -d DEVICE            DEVICE must be without /dev (ex: -d sda)."
+    echo "                       To specify a LVM logical volume use:"
+    echo "                       volgroup/logvol."
+    echo "                       To specify symlink from /dev/disk/ use full path, ex:"
+    echo "                       /dev/disk/by-id/scsi-35000c50035006fb3"
+    echo "  -w/c TPS,READ,WRITE  TPS means transfer per seconds (aka IO/s)"
+    echo "                       READ and WRITE are in sectors per seconds"
     echo "  -W/C NUM             Use average queue length thresholds instead.."
     echo "  -b                   Brief output."
-	echo
+    echo "  -s                   silent output: no warnings or critials are issued"
+    echo
     echo "Performance data for graphing is supplied for tps, read, write, avgrq-sz,"
     echo "avgqu-sz and await (see iostat man page for details)."
     echo
-	echo "Example: Tps, read and write thresholds:"
+    echo "Example: Tps, read and write thresholds:"
     echo "    $0 -d sda -w 200,100000,100000 -c 300,200000,200000"
     echo
-	echo "Example: Average queue length threshold:"
+    echo "Example: Average queue length threshold:"
     echo "    $0 -d sda -W 50 -C 100"
     echo
 }
 
 # process args
-while [ ! -z "$1" ]; do 
-	case $1 in
-		-b)	BRIEF=1 ;;
-		-d)	shift; DISK=${1////!} ;;
-		-w)	shift; WARNING=$1 ;;
-		-c)	shift; CRITICAL=$1 ;;
-		-W)	shift; WARN_QSZ=$1 ;;
-		-C)	shift; CRIT_QSZ=$1 ;;
-		-h)	show_help; exit 1 ;;
-	esac
-	shift
+while [ ! -z "$1" ]; do
+    case $1 in
+        -b) BRIEF=1 ;;
+        -s) SILENT=1 ;;
+        -d) shift; ORIGDISK=$1; DISK=${1////!} ;;
+        -w) shift; WARNING=$1 ;;
+        -c) shift; CRITICAL=$1 ;;
+        -W) shift; WARN_QSZ=$1 ;;
+        -C) shift; CRIT_QSZ=$1 ;;
+        -h) show_help; exit 1 ;;
+    esac
+    shift
 done
 
 # generate HISTFILE filename
@@ -68,11 +85,11 @@ HISTFILE=/var/tmp/check_diskstat_`id -nu`.$DISK
 
 # check input parameters so we can continu !
 sanitize() {
-	# check device name
-	if [ -z "$DISK" ]; then
-		echo "Need device name, ex: sda"
-		exit $E_UNKNOWN
-	fi
+    # check device name
+    if [ -z "$DISK" ]; then
+        echo "Need device name, ex: sda"
+        exit $E_UNKNOWN
+    fi
 
     if [ -z $WARN_QSZ ]; then
         # check thresholds
@@ -84,7 +101,7 @@ sanitize() {
             echo "Need critical threshold"
             exit $E_UNKNOWN
         fi
-	
+
         if [ -z "$WARN_TPS" -o -z "$WARN_READ" -o -z "$WARN_WRITE" ]; then
             echo "Need 3 values for warning threshold (tps,read,write)"
             exit $E_UNKNOWN
@@ -99,19 +116,19 @@ sanitize() {
             exit $E_UNKNOWN
         fi
     fi
-		
+
 }
 
 readdiskstat() {
-	if [ ! -f "/sys/block/$1/stat" ]; then
-		return $E_UNKNOWN
-	fi
+    if [ ! -f "/sys/block/$1/stat" ]; then
+        return $E_UNKNOWN
+    fi
 
-	cat /sys/block/$1/stat
+    cat /sys/block/$1/stat
 }
 
 readhistdiskstat() {
-	[ -f $HISTFILE ] && cat $HISTFILE
+    [ -f $HISTFILE ] && cat $HISTFILE
 }
 
 # process thresholds
@@ -126,23 +143,43 @@ if [ -z $WARN_QSZ ]; then
 fi
 sanitize
 
+if [ ! -e /sys/block/$DISK/stat ]; then
+    # The device does not exist.
+    if [[ $ORIGDISK =~ "/" && -b /dev/$ORIGDISK ]]; then
+        # The minor device no. maps to /dev/dm-N
+        MINOR_HEX=`stat -L /dev/$ORIGDISK --printf="%T\n"`
+        MINOR=`echo $((16#$MINOR_HEX))` # translate hex output to decimal
+        [[ $? -ne 0 ]] && {
+            echo "Could not stat '/dev/$ORIGDISK', check your /sys filesystem for $DISK"
+            exit $E_UNKNOWN
+        }
+        DISK="dm-$MINOR"
+    elif [[ -L $ORIGDISK ]]; then
+        # Symlink to device name 
+        SNAME=`readlink $ORIGDISK`
+        DISK=`basename $SNAME`
+    else
+        echo "Could not find disk stats, check your /sys filesystem for $DISK"
+        exit $E_UNKNOWN
+    fi
+fi
 
 NEWDISKSTAT=$(readdiskstat $DISK)
 if [ $? -eq $E_UNKNOWN ]; then
-	echo "Cannot read disk stats, check your /sys filesystem for $DISK"
-	exit $E_UNKNOWN
+    echo "Cannot read disk stats, check your /sys filesystem for $DISK"
+    exit $E_UNKNOWN
 fi
 
 if [ ! -f $HISTFILE ]; then
-	echo $NEWDISKSTAT >$HISTFILE
-	echo "UNKNOWN - Initial buffer creation..." 
-	exit $E_UNKNOWN
+    echo $NEWDISKSTAT >$HISTFILE
+    echo "UNKNOWN - Initial buffer creation..." 
+    exit $E_UNKNOWN
 fi
 
 OLDDISKSTAT=$(readhistdiskstat)
 if [ $? -ne 0 ]; then
-	echo "Cannot read histfile $HISTFILE..."
-	exit $E_UNKNOWN
+    echo "Cannot read histfile $HISTFILE..."
+    exit $E_UNKNOWN
 fi
 OLDDISKSTAT_TIME=$(stat $HISTFILE | grep Modify | sed 's/^.*: \(.*\)$/\1/')
 OLDDISKSTAT_EPOCH=$(date -d "$OLDDISKSTAT_TIME" +%s)
@@ -164,6 +201,14 @@ NEW_SECTORS_WRITTEN=$(echo $NEWDISKSTAT | awk '{print $7}')
 # kernel handles sectors by 512bytes
 # http://www.mjmwired.net/kernel/Documentation/block/stat.txt
 SECTORBYTESIZE=512
+
+# fix overflowing 32bit counter (4294967296 = 2^32)
+if [ $NEW_SECTORS_READ -lt $OLD_SECTORS_READ ] ; then
+        let "OLD_SECTORS_READ = $OLD_SECTORS_READ - 4294967296"
+fi
+if [ $NEW_SECTORS_WRITTEN -lt $OLD_SECTORS_WRITTEN ] ; then
+        let "OLD_SECTORS_WRITTEN = $OLD_SECTORS_WRITTEN - 4294967296";
+fi
 
 let "SECTORS_READ = $NEW_SECTORS_READ - $OLD_SECTORS_READ"
 let "SECTORS_WRITE = $NEW_SECTORS_WRITTEN - $OLD_SECTORS_WRITTEN"
@@ -208,7 +253,7 @@ let "TIMEINQ = $NEW_TIMEINQ - $OLD_TIMEINQ" #ms
 
 let "AQUSZ = ( $TIMEINQ / $TIME ) / 1000"
 
-if [[ $NR_IOS -ne 0 ]]; then 
+if [[ $NR_IOS -ne 0 ]]; then
     let "AWAIT = ( $READ_TICKS + $WRITE_TICKS ) / $NR_IOS"
     let "ARQSZ = ( $SECTORS_READ + $SECTORS_WRITE ) / $NR_IOS"
 else
@@ -246,7 +291,7 @@ if [ -z $WARN_QSZ ]; then
             OUTPUT="${OUTPUT}critical write sectors/s (>$CRIT_WRITE), "
             EXITCODE=$E_CRITICAL
         else
-            OUTPUT="${OUTPUT}warning write sectors/s (>$WARN_WRITE), " 
+            OUTPUT="${OUTPUT}warning write sectors/s (>$WARN_WRITE), "
             [ "$EXITCODE" -lt $E_CRITICAL ] && EXITCODE=$E_WARNING
         fi
     fi
@@ -270,4 +315,7 @@ else
     echo "$TPS io/s, read ${KBYTES_READ_PER_SEC}kB/s, write ${KBYTES_WRITTEN_PER_SEC}kB/s, ave. queue size ${AQUSZ} | tps=${TPS}io/s;;; read=${BYTES_READ_PER_SEC}b/s;;; write=${BYTES_WRITTEN_PER_SEC}b/s;;; avgrq-sz=${ARQSZ};;; avgqu-sz=${AQUSZ};$WARN_QSZ;$CRIT_QSZ; await=${AWAIT}ms;;;"
 fi
 
+if [[ $SILENT -eq 1 ]]; then
+  EXITCODE=$E_OK
+fi
 exit $EXITCODE

@@ -7,9 +7,19 @@
 #
 # File: check_iftraffic_nrpe.sh
 # Date: 14 May 2013
-# Version: 0.11
+# Version: 0.16
 # Modified: 09 Feb 2014 (Mark Clarkson)
 #           Added check for negative bandwidth.
+#           07 Mar 2014 (Mark Clarkson)
+#           Fixed perpetual 'Got first data sample' problem
+#           18 Feb 2015 (Mark Clarkson)
+#           Also check for the 'date' command.
+#           13 Apr 2015 (Mark Clarkson)
+#           New option '-u' changes unkown errors into warning errors.
+#           14 Apr 2015 (Mark Clarkson)
+#           Added check or cache directory writeability.
+#           10 Jul 2015 (davidak)
+#           Added Rollover correction
 #
 # Purpose: Check and stat a number of network interfaces.
 #
@@ -32,11 +42,12 @@ ME="$0"
 CMDLINE="$@"
 TRUE=1
 FALSE=0
-VERSION="0.11"
+VERSION="0.16"
 OK=0
 WARN=1
 CRIT=2
 UNKN=3
+UNKNOWN="UNKNOWN"
 
 UNSET=99
 EXCLUDE=0
@@ -58,9 +69,10 @@ SYSD="/sys/class/net"
 VLAND="/proc/net/vlan"
 IFCACHE=
 MESSAGE=
+MATCHID=
 
 declare -i WITHPERF=0 PRUNESLAVES=0 CHECKBOND=0 PRUNEDOWN=0 SEMIAUTO=0
-declare -i USEBYTES=0 IFSPEED=100 WARNPC=0 WARNVAL=0 BRIEF=0
+declare -i USEBYTES=0 IFSPEED=100 WARNPC=0 WARNVAL=0 BRIEF=0 ROLLOVER=0
 
 declare -a IFL         # Interface list 
 declare -a IFLL        # Interface list last (from cache)
@@ -83,9 +95,9 @@ main()
 
     parse_options "$@"
 
-    sanity_checks
+    IFCACHE="$IFCACHEPREFIX.$MATCHID.`id -un`.cache"
 
-    IFCACHE="$IFCACHEPREFIX.`id -un`.cache"
+    sanity_checks
 
     do_check
 
@@ -144,25 +156,31 @@ sanity_checks()
 
     for i in "$DEVF" "$SYSD"; do
         [[ ! -r $i ]] && {
-            echo "UNKNOWN: Cannot access '$i'. Proc or sys not mounted?"
+            echo "$UNKNOWN: Cannot access '$i'. Proc or sys not mounted?"
             exit 3
         }
     done
 
-    for binary in grep sed dd id; do
+    for binary in grep sed dd id date; do
         if ! which $binary >& /dev/null; then
-            echo "UNKNOWN: $binary binary not found in path. Aborting."
+            echo "$UNKNOWN: $binary binary not found in path. Aborting."
             exit $UNKN
         fi
     done
 
+    [[ ! -w ${IFCACHE%/*} ]] && {
+        echo -n "$UNKNOWN: Cache directory is not writable. Check "
+        echo " '${IFCACHE%/*}' permissions."
+        exit $UNKN
+    }
+
     [[ -e $IFCACHE && ! -w $IFCACHE ]] && {
-        echo "UNKNOWN: Cache file is not writable. Delete '$IFCACHE'."
+        echo "$UNKNOWN: Cache file is not writable. Delete '$IFCACHE'."
         exit $UNKN
     }
 
     [[ $IFSPEED -eq 0 ]] && {
-        echo "UNKNOWN: Invalid interface speed specified ($IFSPEED)"
+        echo "$UNKNOWN: Invalid interface speed specified ($IFSPEED)"
         exit $UNKN
     }
 }
@@ -186,6 +204,7 @@ usage()
     echo "           Specify this option multiple times to add more."
     echo " -k      : Don't include the slaves of bond devices or bond"
     echo "           devices with no slaves."
+    echo " -r      : Check for Rollover of Values and correct them."
     echo " -p      : Include performance data (for graphing)."
     echo " -b      : Brief - exclude stats in status message. Useful for"
     echo "           systems with many interfaces where a large status"
@@ -214,6 +233,10 @@ usage()
     echo "           checked. Default is 0, which also means, off."
     #echo " -b      : Check bond devices for errors; Alerts if:"
     #echo "              - A bond has no slave devices."
+    echo " -m NUM  : MatchID. Adds the match ID to the cache file name."
+    echo "           This allows the plugin to be run for different"
+    echo "           checks or from multiple servers."
+    echo " -u      : Unknown errors are changed to warning errors."
     echo
     echo "Examples:"
     echo
@@ -368,11 +391,27 @@ write_iflist_stats_to_file()
 }
 
 # ---------------------------------------------------------------------------
+correct_rollover()
+# ---------------------------------------------------------------------------
+{
+    local bytes=$1 last_bytes=$2 max_bytes=$3
+
+    if [[ $bytes -lt $last_bytes ]]; then
+        let "bytes += $max_bytes"
+    fi
+    if [[ $bytes -lt $last_bytes ]]; then
+        bytes=$last_bytes
+    fi
+    echo $bytes
+}
+
+# ---------------------------------------------------------------------------
 do_check()
 # ---------------------------------------------------------------------------
 {
     local -i now i rxl txl deltarx deltatx deltats bpsrx bpstx kbpstx kbpsrx
     local t
+    local -i minus_values=0
 
     fill_netdev_iflist
 
@@ -400,11 +439,19 @@ do_check()
         }
         rxl=`echo "${IFD[i]}" | cut -d " " -f 1`
         txl=`echo "${IFD[i]}" | cut -d " " -f 9`
+
+        # Correct possible Rollover
+        [[ $ROLLOVER -eq 1 ]] && {
+            rxl=$(correct_rollover "$rxl" "${rx[i]}" "4294967295")
+            txl=$(correct_rollover "$txl" "${tx[i]}" "4294967295")
+        }
+
+        # Calculate Deltas
         deltarx=$(($rxl-${rx[i]}))
         deltatx=$(($txl-${tx[i]}))
         deltats=$((now-${ts[i]}))
         [[ $deltats -le 0 ]] && {
-            echo "UNKNOWN: Invalid time delta ($deltats). Aborting."
+            echo "$UNKNOWN: Invalid time delta ($deltats). Aborting."
             exit $UNKN
         }
         # Bytes per second (perf output)
@@ -446,13 +493,19 @@ do_check()
             }
             PERF+="in-${IFL[i]}=${Bpsrx} out-${IFL[i]}=${Bpstx} "
         }
+
+        # Check for negative value. Happens after reboot or rollover.
+        [[ $Bpstx -lt 0 || $Bpsrx -lt 0 ]] && {
+           minus_values=1
+        }
+
     done
 
     # Check for negative value. Happens after reboot or rollover.
-    [[ $Bpstx -le 0 || $Bpsrx -le 0 ]] && {
-        write_iflist_stats_to_file
-        echo "OK: Got first data sample."
-        exit $OK
+    [[ $minus_values -eq 1 ]] && {
+       write_iflist_stats_to_file
+       echo "OK: Got first data sample."
+       exit $OK
     }
 
     if [[ $USEBYTES -eq 0 ]]; then
@@ -503,6 +556,9 @@ parse_options()
                 fi
                 shift
             ;;
+            -m) MATCHID="$2"
+                shift
+            ;;
             -s) IFSPEED="$2"
                 : $((IFSPEED++))
                 : $((IFSPEED--))
@@ -523,11 +579,15 @@ parse_options()
             ;;
             -k) PRUNESLAVES=1
             ;;
+            -r) ROLLOVER=1
+            ;;
             -b) CHECKBOND=1
             ;;
             -B) USEBYTES=1
             ;;
             -a) SEMIAUTO=1
+            ;;
+            -u) UNKN=1; UNKNOWN="WARNING"
             ;;
             -h) usage
                 exit 0
