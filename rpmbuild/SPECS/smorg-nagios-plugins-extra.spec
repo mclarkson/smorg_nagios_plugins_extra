@@ -36,6 +36,7 @@ Adds additional plugins to the Nagios plugins folder
 %install
 [ "$RPM_BUILD_ROOT" != "/" ] && rm -rf $RPM_BUILD_ROOT
 install -d -m 0755 ${RPM_BUILD_ROOT}%_libdir/nagios/plugins
+install -m 4755 check_hpasm_wrapper ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_hpasm_wrapper
 install -m 4755 check_logfiles_wrapper ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_logfiles_wrapper
 install -m 4755 check_puppet_wrapper ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_puppet_wrapper
 install -m 4755 check_nagios_config_wrapper ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_nagios_config_wrapper
@@ -105,6 +106,7 @@ install -m 755 check_yum_wrapper ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_
 
 %files
 %defattr(4755,root,root,755)
+%_libdir/nagios/plugins/check_hpasm_wrapper
 %_libdir/nagios/plugins/check_logfiles_wrapper
 %_libdir/nagios/plugins/check_nagios_config_wrapper
 %_libdir/nagios/plugins/check_puppet_wrapper
