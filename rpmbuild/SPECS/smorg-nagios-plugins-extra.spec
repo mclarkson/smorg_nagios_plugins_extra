@@ -2,14 +2,14 @@
 %define __os_install_post %{nil}
 %define name smorg-nagios-plugins-extra
 %define version 1
-%define release 1.12
+%define release 1.14
 # RH6 is more strict (and it's right! - the 'wrapper's should be built here)
 %define debug_package %{nil}
 
 Summary: Package to deploy additional Nagios plugins
 Name: smorg-nagios-plugins-extra
 Version: 1
-Release: 1.12
+Release: %{release}
 License: GPL
 Group: Applications/System
 Source: smorg-nagios-plugins-extra-1.tar.gz
