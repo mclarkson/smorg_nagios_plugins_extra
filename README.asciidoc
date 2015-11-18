@@ -4,9 +4,8 @@ smorg_nagios_plugins_extra
 Build
 -----
 
-Build as root so suid works.
 ```
-sudo ./jenkins_build.sh
+./jenkins_build.sh
 ```
 
 Available plugins
