@@ -1,0 +1,171 @@
+#!/bin/bash
+# Copyright(C) 2013 Mark Clarkson <mark.clarkson@smorg.co.uk>
+#
+#    This software is provided under the terms of the GNU
+#    General Public License (GPL), as published at: 
+#    http://www.gnu.org/licenses/gpl.html .
+#
+# File:     check_slabsize
+# Date:     19 Nov 2015
+# Version:  0.10
+# Modified: xx Jun 2015 by Mark Clarkson <mark.clarkson@smorg.co.uk>
+#             Sample
+#
+# Purpose:  Check slab size is not too high.
+#
+# Notes:
+#
+
+
+# ---------------------------------------------------------------------------
+# DEFAULTS (Change as necessary)
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# DON'T TOUCH ANYTHING BELOW
+# ---------------------------------------------------------------------------
+
+ME="$0"
+CMDLINE="$@"
+TRUE=1
+FALSE=0
+VERSION="0.10"
+OK=0
+WARN=1
+CRIT=2
+UNKN=3
+
+MEMFILE="/proc/meminfo"
+
+USESUDO=0
+WITHPERF=0
+SUDO="sudo "
+
+declare -i PERCENT=0 USESUDO=0 WITHPERF=0
+declare -i CRITLVL=90 WARNLVL=50
+
+# ---------------------------------------------------------------------------
+main()
+# ---------------------------------------------------------------------------
+{
+    local retval txt msg
+
+    retval=$OK
+
+    parse_options "$@"
+
+    sanity_checks
+
+    # Fill in the stats variables 
+    do_check
+
+    txt="OK:"
+    msg="Slab at $PERCENT% of total RAM."
+
+    [[ $PERCENT -gt $WARNLVL ]] && {
+        txt="WARNING:"
+        retval=$WARN
+    }
+    [[ $PERCENT -gt $CRITLVL ]] && {
+        txt="CRITICAL:"
+        retval=$CRIT
+    }
+
+    out="$txt $msg"
+
+    [[ $WITHPERF -eq 1 ]] && {
+        out="$out | \"Slab %\"=$PERCENT"
+    }
+
+    echo "$out"
+
+    exit $retval
+}
+
+# ---------------------------------------------------------------------------
+sanity_checks()
+# ---------------------------------------------------------------------------
+{
+    [[ $WARNLVL -gt $CRITLVL ]] && {
+        usage
+        echo "ERROR: The warning level is greater than the critical level."
+        exit 0
+    }
+}
+
+# ----------------------------------------------------------------------------
+usage()
+# ----------------------------------------------------------------------------
+{
+    echo
+    echo "`basename $ME` - Alert if Slab usage is high."
+    echo
+    echo "Usage: `basename $ME` [options]"
+    echo
+    echo " -p      :  Add performance data output for graphing."
+    echo " -w NUM  :  Warning alert if Slab memory exceeds NUM % of RAM."
+    echo "            Default is 50."
+    echo " -c NUM  :  Critical alert if Slab memory exceeds NUM % of RAM."
+    echo "            Default is 90."
+    echo " -h      :  Display this help text."
+    echo
+    echo "Example:"
+    echo
+    echo "  Check that Slab does not exceed 50% or 90% of RAM"
+    echo
+    echo "    ./`basename $ME`"
+    echo
+}
+
+# ---------------------------------------------------------------------------
+do_check()
+# ---------------------------------------------------------------------------
+{
+    local -i found=0
+    local m t s
+
+    m=`cat /proc/meminfo`
+
+    t=`echo "$m" | grep MemTotal: | awk '{ print $2; }'`
+    s=`echo "$m" | grep Slab: | awk '{ print $2; }'`
+
+    PERCENT=$(((s*100)/t))
+}
+
+# ----------------------------------------------------------------------------
+parse_options()
+# ----------------------------------------------------------------------------
+# Purpose:      Parse program options and set globals.
+# Arguments:    None
+# Returns:      Nothing
+{
+    set -- "$@"
+    while true
+    do
+        case $1 in
+            #-s) USESUDO=1
+            #;;
+            -p) WITHPERF=1
+            ;;
+            -h) usage
+                exit 0
+            ;;
+            -w) WARNLVL="$2" ; shift
+            ;;
+            -c) CRITLVL="$2" ; shift
+            ;;
+            ?*) usage
+                echo "ERROR: Syntax error, '$2'."
+                exit 4
+            ;;
+        esac
+        shift 1 || break
+    done
+
+    [[ $USESUDO -ne 1 ]] && SUDO=
+}
+
+main "$@"
+
+exit 0
+

@@ -48,6 +48,7 @@ Available plugins
 | check_puppet_log.sh | http://exchange.nagios.org/directory/Plugins/Software/check_puppet_log/details[nagios exchange] | | Checks the system log for puppet errors. The error status clears once fixed.
 | check_puppet_version.sh | | | Check the puppet version.
 | check_puppet_wrapper | | | Setuid binary that is hard coded to execute check_puppet_log.sh
+| check_slabsize | | | Check that kernel Slab size does not exceed percentage threshhold.
 | check_sqljob.sh | http://exchange.nagios.org/directory/Plugins/Databases/SQLServer/MSSQL-Job-Monitoring/details[nagios exchange] | | Microsoft SQL Job check (uses Java).
 | check_ssl_cert | http://exchange.nagios.org/directory/Plugins/Network-Protocols/HTTP/check_ssl_cert/details[nagios exchange] | | Check an ssl certificate remotely. Has more options than check_http certificate check if this is required.
 | check_statusdat_latency | | YES | Checks Nagios server performance.
