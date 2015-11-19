@@ -79,7 +79,7 @@ install -m 755 check_openmanage ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_o
 install -m 755 check_puppet_log.sh ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_puppet_log.sh
 install -m 755 check_puppet_version.sh ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_puppet_version.sh
 #install -m 755 check_rofs.sh ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_rofs.sh
-install -m 755 check_slabsize.sh ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_slabsize
+install -m 755 check_slabsize ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_slabsize
 install -m 755 check_sqljob.sh ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_sqljob.sh
 install -m 755 check_ssl_cert ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_ssl_cert
 install -m 755 check_statusdat_latency ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_statusdat_latency
