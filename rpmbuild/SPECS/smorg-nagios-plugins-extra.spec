@@ -2,7 +2,7 @@
 %define __os_install_post %{nil}
 %define name smorg-nagios-plugins-extra
 %define version 1
-%define release 1.17
+%define release 1.18
 # RH6 is more strict (and it's right! - the 'wrapper's should be built here)
 %define debug_package %{nil}
 
@@ -37,6 +37,7 @@ Adds additional plugins to the Nagios plugins folder
 [ "$RPM_BUILD_ROOT" != "/" ] && rm -rf $RPM_BUILD_ROOT
 install -d -m 0755 ${RPM_BUILD_ROOT}%_libdir/nagios/plugins
 install -m 4755 check_hpasm_wrapper ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_hpasm_wrapper
+install -m 755 check_initramfs_wrapper ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_initramfs_wrapper
 install -m 4755 check_logfiles_wrapper ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_logfiles_wrapper
 install -m 4755 check_puppet_wrapper ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_puppet_wrapper
 install -m 4755 check_nagios_config_wrapper ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_nagios_config_wrapper
@@ -60,6 +61,7 @@ install -m 755 check_hpasm_noacu ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_
 #install -m 755 check_iftraffic_nrpe.py ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_iftraffic_nrpe.py
 install -m 755 check_iftraffic_nrpe.sh ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_iftraffic_nrpe.sh
 install -m 755 check_ilo2_health.pl ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_ilo2_health.pl
+install -m 755 check_initramfs ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_initramfs
 #install -m 755 check_iostat ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_iostat
 install -m 755 check_jboss ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_jboss
 install -m 755 check_jboss.pl ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_jboss.pl
@@ -108,6 +110,7 @@ install -m 755 check_yum_wrapper ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_
 %files
 %defattr(4755,root,root,755)
 %_libdir/nagios/plugins/check_hpasm_wrapper
+%_libdir/nagios/plugins/check_initramfs_wrapper
 %_libdir/nagios/plugins/check_logfiles_wrapper
 %_libdir/nagios/plugins/check_nagios_config_wrapper
 %_libdir/nagios/plugins/check_puppet_wrapper
@@ -133,6 +136,7 @@ install -m 755 check_yum_wrapper ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_
 #%_libdir/nagios/plugins/check_iftraffic_nrpe.py
 %_libdir/nagios/plugins/check_iftraffic_nrpe.sh
 %_libdir/nagios/plugins/check_ilo2_health.pl
+%_libdir/nagios/plugins/check_initramfs
 #%_libdir/nagios/plugins/check_iostat
 %_libdir/nagios/plugins/check_jboss
 %_libdir/nagios/plugins/check_jboss.pl

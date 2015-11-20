@@ -33,6 +33,8 @@ Available plugins
 | check_hp_bladechassis | | YES | Check HP Blade chassis health using SNMP.
 | check_iftraffic_nrpe.sh | http://exchange.nagios.org/directory/Plugins/Network-Connections%2C-Stats-and-Bandwidth/check_iftraffic_nrpe-2Esh/details[nagios exchange] | YES | Finds network interfaces and reports in/out traffic.
 | check_ilo2_health.pl | | | HP server check using ILO 2.
+| check_initramfs | | YES | Check that initramfs is not truncated. Only gzip format initrd supported.
+| check_initramfs_wrapper | | YES | Setuid binary that is hard coded to execute check_initramfs.
 | check_jboss | | | This a wrapper around check_jboss.pl that remaps the following chars: -NNN to <NNN, +NNN to >NNN, ~NNN to !NNN, ~SSS to !"SSS".
 | check_jboss.pl | | | Check JBOSS using _twiddle_.
 | check_jmx | http://exchange.nagios.org/directory/Plugins/Java-Applications-and-Servers/check_jmx/details[nagios exchange] | | Wrapper around a Java JMX checker.
