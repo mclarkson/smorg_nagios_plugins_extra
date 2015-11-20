@@ -2,7 +2,7 @@
 %define __os_install_post %{nil}
 %define name smorg-nagios-plugins-extra
 %define version 1
-%define release 1.19
+%define release 1.20
 # RH6 is more strict (and it's right! - the 'wrapper's should be built here)
 %define debug_package %{nil}
 
