@@ -37,10 +37,11 @@ Adds additional plugins to the Nagios plugins folder
 [ "$RPM_BUILD_ROOT" != "/" ] && rm -rf $RPM_BUILD_ROOT
 install -d -m 0755 ${RPM_BUILD_ROOT}%_libdir/nagios/plugins
 install -m 4755 check_hpasm_wrapper ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_hpasm_wrapper
-install -m 755 check_initramfs_wrapper ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_initramfs_wrapper
+install -m 4755 check_initramfs_wrapper ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_initramfs_wrapper
 install -m 4755 check_logfiles_wrapper ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_logfiles_wrapper
 install -m 4755 check_puppet_wrapper ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_puppet_wrapper
 install -m 4755 check_nagios_config_wrapper ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_nagios_config_wrapper
+install -m 4755 check_sysvstatus_wrapper ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_sysvstatus_wrapper
 install -m 755 SqlJobMon.class ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/SqlJobMon.class
 install -m 755 check_all_diskstat.sh ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_all_diskstat.sh
 install -m 755 check_cluster_table ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_cluster_table
@@ -87,6 +88,7 @@ install -m 755 check_sqljob.sh ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_sq
 install -m 755 check_ssl_cert ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_ssl_cert
 install -m 755 check_statusdat_latency ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_statusdat_latency
 install -m 755 check_swap_activity ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_swap_activity
+install -m 755 check_sysvstatus ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_sysvstatus
 #install -m 755 check_uptime.pl ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_uptime.pl
 install -m 755 check_uptime3 ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_uptime3
 install -m 755 get_stats_memcache ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/get_stats_memcache
@@ -116,6 +118,7 @@ install -m 755 check_yum_wrapper ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_
 %_libdir/nagios/plugins/check_nagios_config_wrapper
 %_libdir/nagios/plugins/check_puppet_wrapper
 %_libdir/nagios/plugins/check_yum_wrapper
+%_libdir/nagios/plugins/check_sysvstatus_wrapper
 %defattr(755,root,root,755)
 %_libdir/nagios/plugins/SqlJobMon.class
 %_libdir/nagios/plugins/check_all_diskstat.sh
@@ -179,6 +182,7 @@ install -m 755 check_yum_wrapper ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_
 %_libdir/nagios/plugins/check_switch_ifs_zeroconf
 %_libdir/nagios/plugins/check_switch_module
 %_libdir/nagios/plugins/check_switch_psu
+%_libdir/nagios/plugins/check_sysvstatus
 %_libdir/nagios/plugins/check_yum
 %dir %_libdir
 
@@ -186,6 +190,8 @@ install -m 755 check_yum_wrapper ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_
 %{__rm} -rf %{buildroot}
 
 %changelog
+* Tue Nov 24 2015 Mark Clarkson <mark.clarkson@smorg.co.uk>
+- Added check_sysvstatus and wrapper.
 * Tue Nov 24 2015 Mark Clarkson <mark.clarkson@smorg.co.uk>
 - Added check_rpmexists.
 * Wed Jan 09 2014 Mark Clarkson <mark.clarkson@smorg.co.uk>

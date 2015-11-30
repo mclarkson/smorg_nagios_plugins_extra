@@ -1,0 +1,165 @@
+#!/bin/bash
+# Copyright(C) 2013 Mark Clarkson <mark.clarkson@smorg.co.uk>
+#
+#    This software is provided under the terms of the GNU
+#    General Public License (GPL), as published at: 
+#    http://www.gnu.org/licenses/gpl.html .
+#
+# File:     check_sysvstatus
+# Date:     30 Nov 2015
+# Version:  0.10
+# Modified: xx Jun 2015 by Mark Clarkson <mark.clarkson@smorg.co.uk>
+#             Sample
+#
+# Purpose:  Check version of an installed RPM.
+#
+# Notes:
+#
+
+
+# ---------------------------------------------------------------------------
+# DEFAULTS (Change as necessary)
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# DON'T TOUCH ANYTHING BELOW
+# ---------------------------------------------------------------------------
+
+ME="$0"
+CMDLINE="$@"
+TRUE=1
+FALSE=0
+VERSION="0.10"
+OK=0
+WARN=1
+CRIT=2
+UNKN=3
+
+USESUDO=0
+WITHPERF=0
+SUDO="sudo "
+SERVICE=""
+STATUS_MSG=""
+
+declare -i PERCENT=0 USESUDO=0 WITHPERF=0
+declare -i CRITLVL=90 WARNLVL=50
+declare -i N=0 STATUS_VAL=0
+declare -a FILE FOUND
+
+# ---------------------------------------------------------------------------
+main()
+# ---------------------------------------------------------------------------
+{
+    local retval txt msg
+
+    retval=$OK
+
+    parse_options "$@"
+
+    sanity_checks
+
+    # Fill in the stats variables 
+    do_check
+
+    txt="OK:"
+    msg="$STATUS_MSG"
+    files=""
+
+    if [[ $STATUS_VAL -eq -1 ]]; then
+        txt="UNKNOWN:"
+        msg="Could not find '$SERVICE' init script."
+        retval=$UNKN
+    elif [[ $STATUS_VAL -gt 0 ]]; then
+        txt="CRITICAL:"
+        msg="$STATUS_MSG"
+        retval=$CRIT
+    fi
+
+    out="$txt $msg"
+
+    [[ $WITHPERF -eq 1 ]] && {
+        out="$out | 'Service Status'=$STATUS_VAL;;;;"
+    }
+
+    echo $out
+
+    exit $retval
+}
+
+# ---------------------------------------------------------------------------
+sanity_checks()
+# ---------------------------------------------------------------------------
+{
+    for binary in basename; do
+        if ! which $binary >& /dev/null; then
+            echo "$UNKNOWN: $binary binary not found in path. Aborting."
+            exit $UNKN
+        fi
+    done
+
+}
+
+# ----------------------------------------------------------------------------
+usage()
+# ----------------------------------------------------------------------------
+{
+    echo
+    echo "`basename $ME` - Alert if service is not started."
+    echo
+    echo "Usage: `basename $ME` [options] VER [VER]..."
+    echo
+    echo " -h      :  Display this help text."
+    echo " -p      :  Include performance data."
+    echo " -v      :  Display the program version."
+    echo
+    echo "Example:"
+    echo
+    echo "  Check that status for SysV Init service is started."
+    echo
+    echo "    ./`basename $ME`"
+    echo
+}
+
+# ---------------------------------------------------------------------------
+do_check()
+# ---------------------------------------------------------------------------
+{
+    if [[ -x "/etc/init.d/$SERVICE" ]]; then
+        STATUS_MSG=`/etc/init.d/$SERVICE status`
+        STATUS_VAL=$?
+    else
+        STATUS_VAL=-1
+    fi
+
+}
+
+# ----------------------------------------------------------------------------
+parse_options()
+# ----------------------------------------------------------------------------
+# Purpose:      Parse program options and set globals.
+# Arguments:    None
+# Returns:      Nothing
+{
+    set -- "$@"
+    while true
+    do
+        case "$1" in
+            -h) usage
+                exit 0
+            ;;
+            -v) echo "Version: $VERSION"
+                exit 0
+            ;;
+            -p) WITHPERF=1
+            ;;
+            ?*) SERVICE="$1"
+            ;;
+        esac
+        shift 1 || break
+    done
+}
+
+main "$@"
+
+exit 0
+
