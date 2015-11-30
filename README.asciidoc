@@ -57,6 +57,8 @@ Available plugins
 | check_switch_ifs_zeroconf | http://exchange.nagios.org/directory/Plugins/Network-Connections%2C-Stats-and-Bandwidth/check_switch_ifs_zeroconf/details[nagios exchange] | | Checks Cisco admin/operational status of all interfaces.
 | check_switch_module | http://exchange.nagios.org/directory/Plugins/Network-Connections%2C-Stats-and-Bandwidth/check_switch_module/details[nagios exchange] | | Cisco Nexus 7000 series switch module check.
 | check_switch_psu | http://exchange.nagios.org/directory/Plugins/Network-Connections%2C-Stats-and-Bandwidth/check_switch_psu/details[nagios exchange] | | Cisco switch PSU check.
+| check_sysvstatus | | | Check status of service in '/etc/init.d'.
+| check_sysvstatus_wrapper | | Wrapper for check_sysvstatus.
 | check_uptime3 | http://exchange.nagios.org/directory/Plugins/System-Metrics/Uptime/check_uptime3/details[nagios exchange] | YES | Check system uptime.
 | show_users.sh | | |
 | check_yum | | NO | check for yum updates.
