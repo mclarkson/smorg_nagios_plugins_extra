@@ -45,6 +45,7 @@ Available plugins
 | check_mysql_health | http://exchange.nagios.org/directory/MySQL/check_mysql_health/details[nagios exchange] | |
 | check_nagios_config | http://exchange.nagios.org/directory/Plugins/Software/check_nagios_config/details[nagios exchange] | | Checks the nagios configuration.
 | check_nfsmounts | http://exchange.nagios.org/directory/Plugins/Operating-Systems/Linux/check_nfsmounts/details[nagios exchange] | | Check NFS mounts.
+| check_numopenfiles | | | Check that number of open files does not exceed percentage threshhold of total.
 | check_om_storage.pl | | | Check Dell storage using _openmanage_.
 | check_openmanage | http://exchange.nagios.org/directory/Plugins/Hardware/Server-Hardware/Dell/check_openmanage/details[nagios exchange] | | Check Dell hardware using _openmanage_.
 | check_puppet_log.sh | http://exchange.nagios.org/directory/Plugins/Software/check_puppet_log/details[nagios exchange] | | Checks the system log for puppet errors. The error status clears once fixed.
