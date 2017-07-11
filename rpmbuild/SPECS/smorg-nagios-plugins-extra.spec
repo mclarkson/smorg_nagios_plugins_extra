@@ -2,7 +2,7 @@
 %define __os_install_post %{nil}
 %define name smorg-nagios-plugins-extra
 %define version 1
-%define release 1.23
+%define release 1.24
 # RH6 is more strict (and it's right! - the 'wrapper's should be built here)
 %define debug_package %{nil}
 
@@ -77,6 +77,7 @@ install -m 755 check_nagios_config ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/chec
 #install -m 755 check_netio.ncfg ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_netio.ncfg
 #install -m 755 check_netio_1.1 ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_netio_1.1
 install -m 755 check_nfsmounts ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_nfsmounts
+install -m 755 check_numopenfiles ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_numopenfiles
 install -m 755 check_om_storage.pl ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_om_storage.pl
 install -m 755 check_openmanage ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_openmanage
 install -m 755 check_puppet_log.sh ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_puppet_log.sh
@@ -155,6 +156,7 @@ install -m 755 check_yum_wrapper ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_
 #%_libdir/nagios/plugins/check_netio.ncfg
 #%_libdir/nagios/plugins/check_netio_1.1
 %_libdir/nagios/plugins/check_nfsmounts
+%_libdir/nagios/plugins/check_numopenfiles
 %_libdir/nagios/plugins/check_om_storage.pl
 %_libdir/nagios/plugins/check_openmanage
 %_libdir/nagios/plugins/check_puppet_log.sh
@@ -190,6 +192,8 @@ install -m 755 check_yum_wrapper ${RPM_BUILD_ROOT}%_libdir/nagios/plugins/check_
 %{__rm} -rf %{buildroot}
 
 %changelog
+* Tue Jul 11 2017 Mark Clarkson <mark.clarkson@smorg.co.uk>
+- Added check_numopenfiles.
 * Tue Nov 24 2015 Mark Clarkson <mark.clarkson@smorg.co.uk>
 - Added check_sysvstatus and wrapper.
 * Tue Nov 24 2015 Mark Clarkson <mark.clarkson@smorg.co.uk>
